@@ -5,82 +5,91 @@
 \title{Collate Base Models}
 \usage{
 collate_base_models(
-  candidate_variables_list,
-  model_df,
   model_dep_df,
-  with_intercept = TRUE,
-  pos_sign_variables,
-  neg_sign_variables,
-  var_agg_delimiter = "\\\\|",
-  run_up_to_flexi_vars = 0,
-  vif_threshold = 10,
-  pvalue_thresholds = c(intercept = 0.15, fixed = 0.15, flexible = 0.15),
-  drop_pvalue_precision = 2,
-  discard_estimate_sign = TRUE,
-  drop_highest_estimate = FALSE,
-  get_model_object = FALSE
+  model_apl_list,
+  with_intercept,
+  base_data,
+  independent_variable_info_list,
+  dependent_sum,
+  drop_flexi_vars,
+  run_up_to_flexi_vars,
+  expected_coef_sign,
+  drop_pvalue_precision,
+  discard_estimate_sign,
+  drop_highest_estimate,
+  get_model_object,
+  defer_intercept_test,
+  always_check_vif
 )
 }
 \arguments{
-\item{candidate_variables_list}{A list of lists, where each sublist contains
-candidate predictors for a model.}
+\item{model_dep_df}{A dataframe containing the dependent variable.}
 
-\item{model_df}{A dataframe of independent variables for all models.}
-
-\item{model_dep_df}{A dataframe of the dependent variable 'Y' for all models.}
+\item{model_apl_list}{A list of dataframes corresponding to each model's independent variables.}
 
 \item{with_intercept}{Logical; if TRUE, an intercept is included in the model.}
 
-\item{pos_sign_variables}{A vector of variable names expected to have a positive
-sign in the model.}
+\item{base_data}{A dataframe containing base data to be used in the model.}
 
-\item{neg_sign_variables}{A vector of variable names expected to have a negative
-sign in the model.}
+\item{independent_variable_info_list}{A list of dataframes, each containing information about the independent variables used in the corresponding model.}
 
-\item{var_agg_delimiter}{A character string used as the delimiter to aggregate
-variables.}
+\item{dependent_sum}{A numeric value representing the sum of the dependent variable, used for model summary calculations.}
 
-\item{run_up_to_flexi_vars}{An integer representing the number of flexible
-variables to consider up to.}
+\item{drop_flexi_vars}{Logical; specifies whether to drop flexible variables from the model.}
 
-\item{vif_threshold}{A numeric threshold for the Variance Inflation Factor (VIF)
-above which variables are dropped.}
+\item{run_up_to_flexi_vars}{An integer specifying the number of flexible variables to consider in the model.}
 
-\item{pvalue_thresholds}{A named list containing p-value thresholds for
-intercept, fixed, and flexible variables.}
+\item{expected_coef_sign}{A named logical vector indicating the expected sign of
+each variable's coefficient in the model. The names of the vector correspond to
+the variable names. For each variable, if the expected coefficient sign is positive,
+the value should be \code{TRUE}. If the expected sign is negative, the value should
+be \code{FALSE}. If the sign is uncertain or not specified, the value can be \code{NA}.}
 
-\item{drop_pvalue_precision}{The precision for the p-value to drop variables.}
+\item{drop_pvalue_precision}{The precision level for p-value used in deciding whether to drop variables from the model.}
 
-\item{discard_estimate_sign}{Logical; if TRUE, the sign of the estimate is
-ignored when dropping variables.}
+\item{discard_estimate_sign}{Logical; if TRUE, the sign of the estimate is ignored when considering variable inclusion in the model.}
 
-\item{drop_highest_estimate}{Logical; if TRUE, the variable with the highest
-estimate is dropped.}
+\item{drop_highest_estimate}{Logical; if TRUE, the variable with the highest estimate is dropped from the model.}
 
-\item{get_model_object}{Logical; if TRUE, the function returns the linear model
-object instead of the default list.}
+\item{get_model_object}{Logical; if TRUE, the function returns the linear model object; otherwise, it returns a list of model summaries.}
+
+\item{defer_intercept_test}{Logical; if TRUE, the intercept test is deferred.}
+
+\item{always_check_vif}{Logical; if TRUE, the Variance Inflation Factor (VIF) is always checked in the model.}
 }
 \value{
-A list containing the collated base models and associated statistics.
+A list containing three elements: model coefficients, model summary statistics, and linear model objects, depending on the provided parameters.
 }
 \description{
-This function collates base models for linear regression from a list of candidate
-variable sets, using the \code{assemble_base_models} function for model assembly.
+This function processes a series of models and performs various operations
+such as binding columns, fitting linear models, and extracting model statistics.
+It handles various options for model fitting and processing, including intercept inclusion,
+flexible variable handling, p-value precision, estimate sign considerations, and more.
 }
 \examples{
 \dontrun{
-  candidate_variables_list <- list(
-    list(fixed = c("var1"), flexible = c("var3")),
-    list(fixed = c("var2"), flexible = c("var4"))
+  model_dep_df <- data.frame(Y = rnorm(100))
+  model_apl_list <- list(data.frame(var1 = rnorm(100)), data.frame(var2 = rnorm(100)))
+  independent_variable_info_list <- list(
+    data.frame(variable = "var1"),
+    data.frame(variable = "var2")
   )
-  independent_df <- data.frame(var1 = rnorm(100), var2 = rnorm(100))
-  dependent_df <- data.frame(Y = rnorm(100))
-
-  results <- collate_base_models(
-    candidate_variables_list,
-    model_df = independent_df,
-    model_dep_df = dependent_df
-    # Additional parameters can be set as needed
+  base_data <- data.frame(base_var = rnorm(100))
+  collate_base_models(
+    model_dep_df = model_dep_df,
+    model_apl_list = model_apl_list,
+    with_intercept = TRUE,
+    base_data = base_data,
+    independent_variable_info_list = independent_variable_info_list,
+    dependent_sum = 100,
+    drop_flexi_vars = TRUE,
+    run_up_to_flexi_vars = 0,
+    drop_pvalue_precision = 2,
+    discard_estimate_sign = TRUE,
+    drop_highest_estimate = FALSE,
+    get_model_object = FALSE,
+    always_check_vif = FALSE
   )
 }
+
 }

@@ -405,7 +405,7 @@ collate_models <-
            always_check_vif = FALSE
   ) {
     #aggregate_indep_vars Logical; if TRUE, independent variable will be aggregated. Experimental feature
-    aggregate_indep_vars = FALSE
+    aggregate_indep_vars <- FALSE
     
     # Dependent Series
     dep_apl_df_list <-

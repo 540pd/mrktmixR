@@ -357,6 +357,8 @@ decompose_model_component <-
 #' # Named vector input with multiple variables aggregated
 #' var_info_vec <- "TV|Radio"
 #' result_vec <- generate_model_dependent(var_info_vec, model_df)
+#' var_info_vec <- c("TV|Radio","Radio|TV")
+#' result_vec <- generate_model_dependent(var_info_vec, model_df)
 #'
 #' var_info_vec <- setNames(5, "TV|0.8_0.22_0")
 #' result_vec <- generate_model_dependent(var_info_vec, model_df)
@@ -405,7 +407,9 @@ generate_model_dependent <- function(var_info,
   if (is.vector(var_info) && is.character(var_info)) {
     var_info <-
       setNames(
-        sapply(model_df[, var_info, drop = FALSE], sum, na.rm = T),
+#        sapply(model_df[, var_info, drop = FALSE], sum, na.rm = T),
+        sapply(aggregate_columns(model_df,var_info), sum, na.rm = T),
+
         paste(
           var_info,
           var_apl_delimiter,

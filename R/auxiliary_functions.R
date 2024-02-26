@@ -141,8 +141,6 @@ replace_values_pairwise <-
 
 #' Scope for Dependent Variable
 #'
-#' Scope for Dependent Variable
-#'
 #' Determines the feasible dependent variables based on previous and current variable names.
 #'
 #' @description
@@ -150,8 +148,6 @@ replace_values_pairwise <-
 #' based on whether it involves aggregation, aggregation and segregation, update in the variable,
 #' or segregation. It assumes the current variable with APL is based on these cases in the named vector.
 #' The names of these vectors will be variables with APL, and their values represent the contribution of the model.
-#'
-#'
 #'
 #' @param previous_var_apl Named numeric vector of previous variable names with application suffix.
 #'                        The names must contain variables with APL as per the specified delimiter.
@@ -166,64 +162,77 @@ replace_values_pairwise <-
 #' The function aims to identify feasible dependent variables by comparing the previous and current variable names.
 #' It considers cases such as aggregation, aggregation and segregation, variable updates, or segregation in the process.
 #' The named vectors generated represent the contribution of the model, with variable names containing APL information.
+#'
 #' @examples
 #' \dontrun{
-#' previous_var_apl <- c("var1|A_0.2_2_0.5" = 0.5, "var2|B_0.5_3_0.3" = 0.3)
-#' current_var_apl <- c("var1|A_0.2_2_0.5" = 0.6, "var3|B_0.4_1_0.2" = 0.2)
+#' # Both matching - aggregation and segregation
+#' previous_var_apl <- c("var1|A_.2_2_5" = 0.5, "var1|A_.2_2_9" = 0.5, "var2|B_.5_.4_.2" = 0.3, "var2|B_.5_.1_.2" = 0.4, "var2|B_.5_.1_9" = 0.4, "afaf_2_3_4" = 0)
+#' current_var_apl <- c("var1|A_.2_2_5" = 0.6, "var1|A_.2_2_9" = 0.6, "var2|B_.5_.4_.2" = 0.9, "var2|B_.5_.4_.2" = 10)
 #' scope_for_dependent_variable(previous_var_apl, current_var_apl)
+#'
+#' # Aggregation and carry forward
+#' previous_var_apl <- c("var3_.2_2_5" = 0.5, "B_.5_.4_.2" = 0.3, "var3_.2_9_5" = 0.78, "B_.9_.4_.2" = 0.33, "d_1_2_4" = 0)
+#' current_var_apl <- c("var3|B_2_4_9" = 0.9, "var3|B_2_4_2" = 0.9, "var3|B_2_4_2" = 10, "var3|B_2_4_2" = 11)
+#' scope_for_dependent_variable(previous_var_apl, current_var_apl)
+#'
+#' # Segregation and carry forward
+#' previous_var_apl <- c("var1|c_.2_2_5" = 0.5, "var1|c_.2_2_1" = 0.5, "d_1_2_4" = 0, "d_1_2_1" = 0)
+#' current_var_apl <- c("var1_2_4_2" = 0.9, "c_.5_.4_.2" = 0.9, "var1_2_4_2" = 11, "c_.5_.4_.2" = 0.10, "c_.5_.4_.2" = 0.10, "c_.5_.4_9" = 0.10)
+#' scope_for_dependent_variable(previous_var_apl, current_var_apl)
+#'
 #' }
-#' @export
-scope_for_dependent_variable <-
-  function(previous_var_apl,
-           current_var_apl,
-           var_agg_delimiter = "|",
-           delimiter = "_") {
+#'
+scope_for_dependent_variable <- function(previous_var_apl, current_var_apl, var_agg_delimiter = "|", delimiter = "_") {
     if (var_agg_delimiter == delimiter) {
-      stop("var_agg_delimiter and delimiter cannot be the same.")
+        stop("var_agg_delimiter and delimiter cannot be the same.")
+    }
+    previous_var_wo_apl_ori <- sapply(str_split(
+        names(previous_var_apl),
+        stringr::fixed(delimiter)
+    ), function(x) x[1])
+    previous_var_wo_apl <- unique(previous_var_wo_apl_ori)
+    current_var_wo_apl_ori <- sapply(str_split(
+        names(current_var_apl),
+        stringr::fixed(delimiter)
+    ), function(x) x[1])
+    current_var_wo_apl <- unique(current_var_wo_apl_ori)
+    previous_vars_wo_apl <- str_split(previous_var_wo_apl, stringr::fixed(var_agg_delimiter))
+    current_vars_wo_apl <- str_split(current_var_wo_apl, stringr::fixed(var_agg_delimiter))
+    previous_var_in_current_vars <- sapply(
+        previous_vars_wo_apl,
+        function(x) all(x %in% unlist(current_vars_wo_apl))
+    )
+    # browser()
+    feasible_dependent_variables <- if (all(sapply(
+        current_var_wo_apl,
+        function(x) x %in% previous_var_wo_apl
+    ))) {
+        previous_var_wo_apl
+    } else if (length(current_vars_wo_apl) > 1 && sum(unlist(previous_var_in_current_vars)) ==
+        1) {
+        c(
+            previous_var_wo_apl[!previous_var_in_current_vars],
+            current_var_wo_apl
+        )
+    } else if (length(current_vars_wo_apl) == 1 && length(previous_vars_wo_apl) >
+        1 && length(purrr::reduce(
+        unlist(current_vars_wo_apl),
+        unlist(previous_vars_wo_apl), setdiff
+    )) == 0) {
+        c(
+            previous_var_wo_apl[!previous_var_in_current_vars],
+            current_var_wo_apl
+        )
+    } else {
+        previous_var_wo_apl
     }
 
-    previous_var_wo_apl <-
-      sapply(str_split(names(previous_var_apl), stringr::fixed(delimiter)), function(x)
-        x[1])
-    current_var_wo_apl <-
-      sapply(str_split(names(current_var_apl), stringr::fixed(delimiter)), function(x)
-        x[1])
-
-    previous_vars_wo_apl <-
-      str_split(previous_var_wo_apl, stringr::fixed(var_agg_delimiter))
-    current_vars_wo_apl <-
-      str_split(current_var_wo_apl, stringr::fixed(var_agg_delimiter))
-
-    previous_var_in_current_vars <-
-      sapply(previous_vars_wo_apl, function(x)
-        all(x %in% unlist(current_vars_wo_apl)))
-
-    # remodel and regroup & split
-    feasible_dependent_variables <-
-      if (all(sapply(current_var_wo_apl, function(x)
-        x %in% previous_var_wo_apl))) {
-        previous_var_wo_apl
-      } else
-        # split
-        if (length(current_vars_wo_apl) > 1 &&
-            sum(unlist(previous_var_in_current_vars)) == 1) {
-          c(previous_var_wo_apl[!previous_var_in_current_vars], current_var_wo_apl)
-        } else
-          # aggregation
-          if (length(current_vars_wo_apl) == 1 &&
-              length(previous_vars_wo_apl) > 1 &&
-              length(purrr::reduce(
-                unlist(current_vars_wo_apl),
-                unlist(previous_vars_wo_apl),
-                setdiff
-              )) == 0) {
-            c(previous_var_wo_apl[!previous_var_in_current_vars], current_var_wo_apl)
-          } else {
-            previous_var_wo_apl
-          }
-    return(c(current_var_apl[current_var_wo_apl %in% feasible_dependent_variables],
-             previous_var_apl[previous_var_wo_apl %in% feasible_dependent_variables[!feasible_dependent_variables %in% current_var_wo_apl]]))
-  }
+    return(c(
+        current_var_apl[current_var_wo_apl_ori %in% current_var_wo_apl[current_var_wo_apl %in% feasible_dependent_variables]],
+        previous_var_apl[previous_var_wo_apl_ori %in% previous_var_wo_apl[previous_var_wo_apl %in% feasible_dependent_variables[!feasible_dependent_variables %in%
+            current_var_wo_apl]]]
+    ))
+}
 
 #' Create File Path
 #'

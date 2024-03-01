@@ -681,7 +681,7 @@ collate_models <-
     model_coef_all <-
       purrr::map_dfr(model_result, 1, .id = "dependent_id")
     model_coef_all <- model_coef_all %>%
-      rbind(model_coef_all %>% replicate_and_extend_dep_ids(id_factors, c("sum", "Estimate", "dep_sum"))) %>%
+      rbind(model_coef_all %>% replicate_and_extend_dep_ids(id_factors, c("Estimate", "dep_sum"))) %>%
       dplyr::mutate(
         contri = .data[["Estimate"]] * .data[["sum"]],
         contri_perc = .data[["contri"]] / .data[["dep_sum"]] *

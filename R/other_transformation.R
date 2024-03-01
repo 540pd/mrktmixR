@@ -793,6 +793,6 @@ replicate_and_extend_dep_ids <- function(data, ids_with_factors, cols_to_apply_f
     }) %>%
       dplyr::bind_rows()
   } else {
-    data
+    data.frame()
   }
 }

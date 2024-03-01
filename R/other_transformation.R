@@ -731,3 +731,68 @@ determine_pvalue_flag <- function(type, pvalue, pvalue_thresholds) {
 find_critical_vif <- function(type, vif_threshold) {
   dplyr::if_else(sum(stringr::str_count(type, "fixed")) == 1, Inf, vif_threshold)
 }
+
+#' Replicate and Extend Dependent IDs with Factors
+#'
+#' This function replicates and extends a dataset by applying factors to specific columns
+#' based on the provided dependent IDs and factors.
+#'
+#' @param data The original dataset to be replicated and extended.
+#' @param ids_with_factors A named list where each element corresponds to a dependent ID,
+#' and the values are vectors of factors to be applied.
+#' @param cols_to_apply_factor A character vector specifying the columns in the dataset
+#' on which the factors should be applied.
+#'
+#' @return A replicated and extended dataset with modified values in specified columns.
+#'
+#' @importFrom dplyr filter mutate select bind_rows
+#' @importFrom purrr imap map2 replicate
+#' @examples
+#' \dontrun{
+#' # Set a seed for reproducibility
+#' set.seed(123)
+#'
+#' # Number of rows in the dataset
+#' num_rows <- 100
+#'
+#' # Generate data
+#' data <- data.frame(
+#'   dependent_id = 1:num_rows,
+#'   age = sample(22:45, num_rows, replace = TRUE),
+#'   income = sample(40000:100000, num_rows, replace = TRUE),
+#'   expenses = sample(1500:5000, num_rows, replace = TRUE),
+#'   savings = sample(18000:75000, num_rows, replace = TRUE)
+#' )
+#'
+#' # Display the first few rows of the dataset
+#' head(data)
+#'
+#' # Define factors to apply for specific dependent IDs and columns
+#' ids_with_factors <- list("2" = c(2, 4), "3" = c(3, 4, 5))
+#' cols_to_apply_factor <- c("income", "savings")
+#'
+#' # Replicate and extend the dataset
+#' replicate_and_extend_dep_ids(data, ids_with_factors, cols_to_apply_factor)
+#' }
+#'
+replicate_and_extend_dep_ids <- function(data, ids_with_factors, cols_to_apply_factor) {
+  if (length(ids_with_factors)) {
+    purrr::imap(ids_with_factors, function(factor2apply, idx) {
+      purrr::map2(
+        factor2apply,
+        replicate(length(factor2apply), data %>%
+          dplyr::filter(dependent_id == idx), simplify = FALSE),
+        function(x, y) {
+          y %>%
+            dplyr::mutate(across(all_of(cols_to_apply_factor), ~ . * x))
+        }
+      ) %>%
+        dplyr::bind_rows(.id = ".id") %>%
+        dplyr::mutate(dependent_id = as.numeric(idx) + as.numeric(.id) / 10) %>%
+        dplyr::select(-.id)
+    }) %>%
+      dplyr::bind_rows()
+  } else {
+    data
+  }
+}

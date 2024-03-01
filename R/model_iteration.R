@@ -402,11 +402,25 @@ collate_models <-
            drop_highest_estimate = FALSE,
            get_model_object = FALSE,
            defer_intercept_test = FALSE,
-           always_check_vif = FALSE
-  ) {
-    #aggregate_indep_vars Logical; if TRUE, independent variable will be aggregated. Experimental feature
-    aggregate_indep_vars <- FALSE
-    
+           always_check_vif = FALSE) {
+    if (is.list(dep_var_info) && all(lapply(dep_var_info, length) == 1)) {
+      dep_variable_with_apl <- unlist(lapply(dep_var_info, names))
+      dup_dep_variables_with_apl <- unique(dep_variable_with_apl[duplicated(dep_variable_with_apl)])
+      unique_dep_variables_with_apl_idx <- !duplicated(dep_variable_with_apl)
+
+      id_factors <- lapply(dup_dep_variables_with_apl, function(dup_dep_variable_with_apl) {
+        idx_rel <- which(dep_variable_with_apl[unique_dep_variables_with_apl_idx] == dup_dep_variable_with_apl)
+        factors_all <- unlist(dep_var_info[dep_variable_with_apl %in% dup_dep_variable_with_apl])
+        id_factor <- list(unname(factors_all[-1] / factors_all[1]))
+        names(id_factor) <- idx_rel
+        id_factor
+      })
+      id_factors <- unlist(id_factors, recursive = F)
+      dep_var_info <- dep_var_info[unique_dep_variables_with_apl_idx]
+    } else {
+      id_factors <- list()
+    }
+
     # Dependent Series
     dep_apl_df_list <-
       generate_model_dependent(dep_var_info, model_df, apl_delimiter, var_apl_delimiter)
@@ -433,7 +447,7 @@ collate_models <-
     }
     # vector with sum of dependent series
     dependent_sum_list <- purrr::map_vec(dep_apl_df_list[[2]], sum)
-    
+
     # Base variable
     if (any(!is.na(base_variables))) {
       base_data <- model_df %>%
@@ -445,7 +459,7 @@ collate_models <-
     } else {
       base_data <- data.frame()
     }
-    
+
     # Aggregate independent variable
     candidate_variables_list_variable <-
       unique(unlist(lapply(
@@ -460,9 +474,12 @@ collate_models <-
     }
     model_df_rel <-
       aggregate_columns(model_df, candidate_variables_list_variable, delimiter = var_agg_delimiter)
-    
-    
+
+
     # Apply the 'apl' function on independent variables and replace NA with zero
+    # aggregate_indep_vars Logical; if TRUE, independent variable will be aggregated. Experimental feature
+    aggregate_indep_vars <- FALSE
+
     model_apl_list <-
       purrr::map(candidate_variables_list, function(candidate_predictors) {
         if (!aggregate_indep_vars) {
@@ -472,16 +489,16 @@ collate_models <-
         } else {
           named_apl_info <- lapply(unlist(unname(candidate_predictors), recursive = F), function(named_vars) {
             setNames(named_vars["contri"], paste("|",
-                                                 named_vars["adstock"],
-                                                 named_vars["power"],
-                                                 named_vars["lag"],
-                                                 sep = "_"
+              named_vars["adstock"],
+              named_vars["power"],
+              named_vars["lag"],
+              sep = "_"
             ))
           })
-          
+
           named_apl_info <- unlist(named_apl_info)
           names(named_apl_info) <- str_replace(names(named_apl_info), fixed(".|_"), "_")
-          
+
           model_df_apl <- decompose_model_component(
             named_apl_info,
             model_df,
@@ -493,29 +510,29 @@ collate_models <-
             dplyr::mutate(dplyr::across(
               everything(), ~ tidyr::replace_na(.x, 0)
             ))
-          
+
           model_df_apl <- aggregate_columns(model_df_apl, c(paste(names(candidate_predictors$fixed), collapse = "|"), names(candidate_predictors$flexible)), delimiter = var_agg_delimiter)
         }
         model_df_apl
       })
-    
-    
-    
+
+
+
     if (aggregate_indep_vars) {
       candidate_variables_list <- lapply(candidate_variables_list, function(candidate_predictors) {
         if ("fixed" %in% names(candidate_predictors)) {
           candidate_predictors$fixed <- setNames(list(c(adstock = 0, power = 1, lag = 0)), paste(names(candidate_predictors$fixed), collapse = "|"))
         }
-        
+
         if ("flexible" %in% names(candidate_predictors)) {
           candidate_predictors$flexible <- lapply(candidate_predictors$flexible, function(x) x[names(x) != "contri"])
         }
-        
+
         candidate_predictors
       })
     }
-    
-    
+
+
     if (!is.na(mdl_start_date)) {
       model_apl_list <-
         purrr::map(model_apl_list, function(x) {
@@ -528,7 +545,7 @@ collate_models <-
           x[rownames(x) <= mdl_end_date, , drop = F]
         })
     }
-    
+
     candidate_variables_sum <-
       dplyr::bind_rows(purrr::map(model_apl_list, function(model_df_apl) {
         sum_including_intercept <- c(
@@ -544,7 +561,7 @@ collate_models <-
       }), .id = "model_id")
     candidate_variables_sum$model_id <-
       as.numeric(candidate_variables_sum$model_id)
-    
+
     # expected sign
     expected_sign <-
       setNames(
@@ -556,8 +573,8 @@ collate_models <-
         ),
         c(names(model_df_rel), "(Intercept)")
       )
-    
-    
+
+
     # Model Parameters
     candidate_variables_df <-
       dplyr::bind_rows(purrr::map(candidate_variables_list, function(x) {
@@ -575,7 +592,7 @@ collate_models <-
       )
     candidate_variables_df$model_id <-
       as.numeric(candidate_variables_df$model_id)
-    
+
     # add intercept and its parameters
     if (with_intercept) {
       intercept_df <-
@@ -593,8 +610,8 @@ collate_models <-
       candidate_variables_df <-
         rbind(candidate_variables_df, intercept_df)
     }
-    
-    
+
+
     # pvalue
     critical_pval_df <-
       data.frame(
@@ -603,21 +620,21 @@ collate_models <-
       )
     candidate_variables_df <-
       merge(candidate_variables_df,
-            critical_pval_df,
-            by = "type",
-            all.x = T
+        critical_pval_df,
+        by = "type",
+        all.x = T
       )
-    
+
     # effective vif threshold
     candidate_variables_df <- candidate_variables_df %>%
       dplyr::group_by(.data$model_id) %>%
       dplyr::mutate(count_fixed_var = sum(.data$type == "fixed")) %>%
       dplyr::ungroup()
     candidate_variables_df$critical_vif <- vif_threshold
-    
+
     candidate_variables_df <- candidate_variables_df %>%
       left_join(candidate_variables_sum, by = c("model_id", "variable"))
-    
+
     candidate_variables_df_list <-
       candidate_variables_df[, c(
         "model_id",
@@ -631,13 +648,13 @@ collate_models <-
         "critical_vif"
       )] %>%
       dplyr::group_split(as.factor(.data$model_id), .keep = FALSE)
-    
-    
+
+
     if (is.na(run_up_to_flexi_vars)) {
       run_up_to_flexi_vars <-
         Inf
     }
-    
+
     model_result <-
       purrr::map2(
         dep_apl_df_list[[2]],
@@ -660,19 +677,22 @@ collate_models <-
           always_check_vif
         )
       )
-    
-    
+
     model_coef_all <-
-      purrr::map_dfr(model_result, 1, .id = "dependent_id") %>%
+      purrr::map_dfr(model_result, 1, .id = "dependent_id")
+    model_coef_all <- model_coef_all %>%
+      rbind(model_coef_all %>% replicate_and_extend_dep_ids(id_factors, c("sum", "Estimate", "dep_sum"))) %>%
       dplyr::mutate(
         contri = .data[["Estimate"]] * .data[["sum"]],
         contri_perc = .data[["contri"]] / .data[["dep_sum"]] *
           100
       )
-    
+
     model_smry_all <-
       purrr::map_dfr(model_result, 2, .id = "dependent_id")
-    
+    model_smry_all <- model_smry_all %>%
+      rbind(model_smry_all %>% replicate_and_extend_dep_ids(id_factors, c("sigma", "residuals", "rmse", "mae", "dependent_sum")))
+
     # Initial summarization of flags
     mdl_smry_flag <- model_coef_all %>%
       dplyr::group_by(.data$dependent_id, .data$model_id, .data$loop_id) %>%
@@ -682,7 +702,7 @@ collate_models <-
         flag_vif = sum(.data[["flag_vif"]], na.rm = TRUE),
         .groups = "drop"
       )
-    
+
     # Summarize by type and then pivot to long format
     smry_var_type <- model_coef_all %>%
       dplyr::group_by(
@@ -707,11 +727,11 @@ collate_models <-
       ) %>%
       dplyr::mutate(variable = paste(.data[["type"]], .data[["variable_name"]], sep = "_")) %>%
       dplyr::select(-"type", -"variable_name")
-    
+
     # Pivot wider and prepare for join
     mdl_smry_var_type <- smry_var_type %>%
       tidyr::pivot_wider(names_from = "variable", values_from = "value")
-    
+
     # Summarize contributions and percentages, then pivot longer
     mdl_smry_var <- model_coef_all %>%
       filter(.data$type == "fixed") %>%
@@ -747,37 +767,38 @@ collate_models <-
       ) %>%
       dplyr::mutate(variable_new = paste(.data$variable, .data$variable_name, sep = "_")) %>%
       dplyr::select(-"variable", -"variable_name")
-    
+
     # Pivot wider and prepare for join
     mdl_smry_var_wide <- mdl_smry_var %>%
       tidyr::pivot_wider(names_from = "variable_new", values_from = "value")
-    
+
     # Join all the summaries
     mdl_smry <-
       dplyr::full_join(mdl_smry_flag,
-                       mdl_smry_var_type,
-                       by = c("dependent_id", "model_id", "loop_id")
+        mdl_smry_var_type,
+        by = c("dependent_id", "model_id", "loop_id")
       ) %>%
       dplyr::full_join(mdl_smry_var_wide,
-                       by = c("dependent_id", "model_id", "loop_id")
+        by = c("dependent_id", "model_id", "loop_id")
       )
-    
+
     # Add flag number and join everything
     mdl_smry <- mdl_smry %>%
       dplyr::mutate(flag_num = rowSums(dplyr::across(
         c("flag_pvalue", "flag_sign", "flag_vif")
       ), na.rm = TRUE))
-    
+
     model_smry_all <-
       dplyr::full_join(model_smry_all,
-                       mdl_smry,
-                       by = c("dependent_id", "model_id", "loop_id")
+        mdl_smry,
+        by = c("dependent_id", "model_id", "loop_id")
       )
-    
+
     lm_model_all <- purrr::map(model_result, 3)
-    
+
     list(
-      dep_apl_df_list[[1]],
+      dep_apl_df_list[[1]] %>%
+        rbind(dep_apl_df_list[[1]] %>% replicate_and_extend_dep_ids(id_factors, c("sum"))),
       model_smry_all,
       model_coef_all,
       lm_model_all

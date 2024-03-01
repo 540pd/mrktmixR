@@ -395,7 +395,7 @@ decompose_model_component <-
 #'
 #' }
 #'
-#' @importFrom purrr map flatten
+#' @importFrom purrr map flatten map2
 #' @importFrom tibble enframe as_tibble
 #' @importFrom tidyr unnest_wider
 #'
@@ -484,7 +484,8 @@ generate_model_dependent <- function(var_info,
 
     }
   }
-  list(var_apl_info, apl_df_list)
+  dep_sum<-lapply(apl_df_list,function(x)sapply(x,sum))
+  list(purrr::map2(var_apl_info,dep_sum , ~cbind(.x,sum = unname(.y))), apl_df_list)
 }
 
 #' Get Dependent and Independent Variables

@@ -815,7 +815,7 @@ replicate_and_extend_dep_ids <- function(data, ids_with_factors, cols_to_apply_f
       apply_factor_df(df, id_factors_num, cols_to_apply_factor)
     })
     df_modified %>%
-      select(-id)
+      dplyr::select(-id)
   } else {
     data.frame()
   }

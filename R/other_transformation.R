@@ -775,23 +775,47 @@ find_critical_vif <- function(type, vif_threshold) {
 #' replicate_and_extend_dep_ids(data, ids_with_factors, cols_to_apply_factor)
 #' }
 #'
+# replicate_and_extend_dep_ids <- function(data, ids_with_factors, cols_to_apply_factor) {
+#   if (length(ids_with_factors)) {
+#     purrr::imap(ids_with_factors, function(factor2apply, idx) {
+#       purrr::map2(
+#         factor2apply,
+#         replicate(length(factor2apply), data %>%
+#           dplyr::filter(dependent_id == idx), simplify = FALSE),
+#         function(x, y) {
+#           y %>%
+#             dplyr::mutate(across(all_of(cols_to_apply_factor), ~ . * x))
+#         }
+#       ) %>%
+#         dplyr::bind_rows(.id = ".id") %>%
+#         dplyr::mutate(dependent_id = as.numeric(idx) + as.numeric(.id) / 10) %>%
+#         dplyr::select(-.id)
+#     }) %>%
+#       dplyr::bind_rows()
+#   } else {
+#     data.frame()
+#   }
+# }
 replicate_and_extend_dep_ids <- function(data, ids_with_factors, cols_to_apply_factor) {
   if (length(ids_with_factors)) {
-    purrr::imap(ids_with_factors, function(factor2apply, idx) {
-      purrr::map2(
-        factor2apply,
-        replicate(length(factor2apply), data %>%
-          dplyr::filter(dependent_id == idx), simplify = FALSE),
-        function(x, y) {
-          y %>%
-            dplyr::mutate(across(all_of(cols_to_apply_factor), ~ . * x))
-        }
-      ) %>%
-        dplyr::bind_rows(.id = ".id") %>%
-        dplyr::mutate(dependent_id = as.numeric(idx) + as.numeric(.id) / 10) %>%
-        dplyr::select(-.id)
-    }) %>%
-      dplyr::bind_rows()
+    data$dependent_id <- as.numeric(data$dependent_id)
+    data_list <- lapply(names(ids_with_factors), function(x) data[data$dependent_id == x, ])
+    apply_factor_df <- function(df, factors2apply, cols_to_apply_factor) {
+      df_list <- replicate(length(factors2apply), df, simplify = F)
+      df_collated <- purrr::map2_df(df_list, factors2apply, function(df, x) {
+        df[, cols_to_apply_factor] <- df[, cols_to_apply_factor] * x
+        df
+      }, .id = "id")
+      df_collated$id <- as.numeric(df_collated$id)
+      divisor <- 10^ceiling(log10(length(factors2apply)))
+      df_collated$dependent_id <- df_collated$dependent_id + df_collated$id / divisor
+      df_collated
+    }
+    df_modified <- purrr::map2_df(data_list, ids_with_factors, function(df, id_factors_num) {
+      apply_factor_df(df, id_factors_num, cols_to_apply_factor)
+    })
+    df_modified %>%
+      select(-id)
   } else {
     data.frame()
   }

@@ -306,7 +306,7 @@ decompose_model_component <-
 #' @param delimiter The delimiter used for separating variable components.
 #' @param var_agg_delimiter The delimiter used for variable aggregation.
 #'
-#' @return A list containing the decomposition of the model into its components.
+#' @return A list containing the dependent and its decomposition of its components.
 #'
 #' @examples
 #' \dontrun{

@@ -404,16 +404,18 @@ compare_named_vectors <- function(base_vector, comparison_vector) {
 #'
 #' @param first_vector A named vector.
 #' @param second_vector A named vector.
+#' @param acceptable_difference Threshold for acceptable difference.
 #'
 #' @return This function does not return any value. It prints the differences between the two vectors.
 #'
 #' @examples
 #' first_vector <- c(a = 1, b = 2, c = 3)
 #' second_vector <- c(a = 1, b = 4, d = 5)
-#' compare_and_print_differences(first_vector, second_vector)
+#' compare_and_print_differences(first_vector, second_vector, acceptable_difference = 1)
 #'
+#' @import dplyr::filter
 #' @export
-compare_and_print_differences <- function(first_vector, second_vector) {
+compare_and_print_differences <- function(first_vector, second_vector, acceptable_difference = NULL) {
   # Extract names of each vector
   names1 <- names(first_vector)
   names2 <- names(second_vector)
@@ -423,31 +425,16 @@ compare_and_print_differences <- function(first_vector, second_vector) {
   names_only_in_second <- setdiff(names2, names1)
   
   # Find elements that have different values in both vectors
-  different_elements <- intersect(names1, names2)
-  different_elements <- different_elements[first_vector[different_elements] != second_vector[different_elements]]
-  
-  # Create lists to store information
-  name_list <- vector("character", length(different_elements))
-  first_value_list <- vector("numeric", length(different_elements))
-  second_value_list <- vector("numeric", length(different_elements))
-  difference_list <- vector("numeric", length(different_elements))
-  
-  # Fill lists with information
-  for (i in seq_along(different_elements)) {
-    name_list[i] <- different_elements[i]
-    first_value_list[i] <- first_vector[different_elements[i]]
-    second_value_list[i] <- second_vector[different_elements[i]]
-    difference_list[i] <- first_vector[different_elements[i]] - second_vector[different_elements[i]]
+  differences_df <- data.frame(
+    Name = intersect(names1, names2),
+    First_Vector = first_vector[intersect(names1, names2)],
+    Second_Vector = second_vector[intersect(names1, names2)],
+    Difference = -(first_vector[intersect(names1, names2)] - second_vector[intersect(names1, names2)])
+  )
+  if (!(is.null(acceptable_difference) || is.na(acceptable_difference))) {
+    differences_df <- dplyr::filter(differences_df, abs(Difference) > acceptable_difference)
   }
   
-  # Create dataframe from lists
-  differences_df <- data.frame(
-    Name = name_list,
-    First_Vector = first_value_list,
-    Second_Vector = second_value_list,
-    Difference = difference_list
-  )
-
   # Print differences if any are found
   if (length(names_only_in_first) > 0) {
     cat("Names only in first vector:", names_only_in_first, "\n")

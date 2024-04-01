@@ -302,3 +302,57 @@ test_that("Aggregation & Segregation with different delimiters", {
   expect_equal(result$dependent_var, c("TV_0_1_0","Sales|Radio_0_1_0"))
   expect_equal(result$independent_var, "TV_0_1_0|Sales|Radio_0_1_0")
 })
+
+
+# Define test data with 4-5 columns
+df <- data.frame(
+  dep_var1 = c(1, 2, 3),
+  dep_var2 = c(4, 5, 6),
+  indep_var1 = c(7, 8, 9),
+  indep_var2 = c(10, 11, 12),
+  indep_var3 = c(13, 14, 15)
+)
+
+test_that("generate_model_decomposition returns expected results", {
+  # Test case 1: Single dependent variable, single independent variable
+  result <- generate_model_decomposition(list(setNames(1,"dep_var1_0_1_0")), list(setNames(c(1:3),c("indep_var1_0_1_0","indep_var2_0_1_0","indep_var3_0_1_0"))), df)
+  expect_equal(length(result), 1)
+  # Add more specific assertions based on your expected results
+
+  # Test case 2: Combined dependent variables, combined independent variables
+  result <- generate_model_decomposition(list(setNames(1,"dep_var1|dep_var2_0_1_0")), list(setNames(c(1:2),c("indep_var1|indep_var2_0_1_0","indep_var3_0_1_0"))), df)
+  expect_equal(length(result), 1)
+  # Add more specific assertions based on your expected results
+
+  # Test case 3: Multiple dependent variables, multiple independent variables
+  result <- generate_model_decomposition(list(setNames(1:2,c("dep_var1_0_1_0","dep_var2_0_1_0"))), list(setNames(c(1:3),c("indep_var1_0_1_0","indep_var2_0_1_0","indep_var3_0_1_0"))), df)
+  expect_equal(length(result), 1)
+  # Add more specific assertions based on your expected results
+
+  # Test case 4: Multiple dependent variables, multiple sets of independent variables
+  result <- generate_model_decomposition(list(setNames(1,"dep_var1_0_1_0"),setNames(2,"dep_var2_0_1_0")), list(setNames(c(1:3),c("indep_var1_0_1_0","indep_var2_0_1_0","indep_var3_0_1_0")),setNames(c(1:3),c("indep_var1_0_1_0","indep_var2_0_1_0","indep_var3_0_1_0"))), df)
+  expect_equal(length(result), 2)
+  # Add more specific assertions based on your expected results
+})
+
+
+
+test_that("generate_model_decomposition returns expected results with 4-5 column data", {
+  # Test case 1: Dependent and independent variables have 1-to-1 correspondence
+  result <- generate_model_decomposition(dep_info = c("dep_var1", "dep_var2"),
+                                         indep_info = c("indep_var1", "indep_var2"),
+                                         modeling_df = test_data)
+  expect_equal(length(result), 2)
+  # Add more specific assertions based on your expected results
+
+  # Test case 2: Dependent and independent variables have different counts
+  result <- generate_model_decomposition(dep_info = c("dep_var1", "dep_var2"),
+                                         indep_info = c("indep_var1", "indep_var2", "indep_var3"),
+                                         modeling_df = test_data)
+  expect_equal(length(result), 2)
+  # Add more specific assertions based on your expected results
+
+  # Test case 3: Test with different settings of weight coefficients
+  result <- generate_model_decomposition(dep_info = c("dep_var1", "dep_var2"),
+                                         indep_info = c("indep_var1", "indep_var2"),
+                                         modeling_df = test_data)})

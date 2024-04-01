@@ -819,3 +819,60 @@ replicate_and_extend_dep_ids <- function(data, ids_with_factors, cols_to_apply_f
     data.frame()
   }
 }
+
+#' Generate Model Decomposition
+#'
+#' This function decomposes a model into its components, including dependent and independent variables, based on provided transformation parameters. It allows for the decomposition of complex models into simpler components for analysis or interpretation.
+#'
+#' @param dep_info A list specifying the dependent variable(s) or combinations of dependent variables along with their transformation parameters. Each element of the list should be a numeric value representing the weight coefficient for the corresponding dependent variable(s). The names of dependent variables should include the adstock, power, and lag parameters required for variable transformation, along with variable names and components, separated by the delimiter.
+#' @param indep_info A list specifying the independent variable(s) or combinations of independent variables along with their transformation parameters. Each element of the list should be a numeric value representing the weight coefficient for the corresponding independent variable(s). The names of independent variables should include the adstock, power, and lag parameters required for variable transformation, along with variable names and components, separated by the delimiter.
+#' @param modeling_df The data frame containing the modeling data.
+#' @param dep_info_is_weight_coefficient Logical, indicating whether the dependent variable information represents weight coefficients.
+#' @param indep_info_is_weight_coefficient Logical, indicating whether the independent variable information represents weight coefficients.
+#' @param apl_delimiter The delimiter used for separating adstock, power, lag parameters from variable names and components.
+#' @param delimiter The delimiter used for separating variable components.
+#' @param var_agg_delimiter The delimiter used for variable aggregation.
+#'
+#' @return A list containing the dependent and its decomposition of its components.
+#'
+#' @examples
+#' \dontrun{
+#' df <- data.frame(
+#'   dep_var1 = c(1, 2, 3),
+#'   dep_var2 = c(4, 5, 6),
+#'   indep_var1 = c(7, 8, 9),
+#'   indep_var2 = c(10, 11, 12),
+#'   indep_var3 = c(13, 14, 15)
+#' )
+#' generate_model_decomposition(list(setNames(1,"dep_var1_0_1_0")), list(setNames(c(1:3),c("indep_var1_0_1_0","indep_var2_0_1_0","indep_var3_0_1_0"))), df)
+#' generate_model_decomposition(list(setNames(1,"dep_var1|dep_var2_0_1_0")), list(setNames(c(1:2),c("indep_var1|indep_var2_0_1_0","indep_var3_0_1_0"))), df)
+#' generate_model_decomposition(list(setNames(1:2,c("dep_var1_0_1_0","dep_var2_0_1_0"))), list(setNames(c(1:3),c("indep_var1_0_1_0","indep_var2_0_1_0","indep_var3_0_1_0"))), df)
+#' generate_model_decomposition(list(setNames(1,"dep_var1_0_1_0"),setNames(2,"dep_var2_0_1_0")), list(setNames(c(1:3),c("indep_var1_0_1_0","indep_var2_0_1_0","indep_var3_0_1_0")),setNames(c(1:3),c("indep_var1_0_1_0","indep_var2_0_1_0","indep_var3_0_1_0"))), df)
+#'}
+#' @importFrom purrr map2_vec
+#'
+#' @export
+#'
+generate_model_decomposition <- function(dep_info, indep_info, modeling_df, dep_info_is_weight_coefficient = FALSE, indep_info_is_weight_coefficient = TRUE, apl_delimiter = "_", delimiter = "_", var_agg_delimiter = "|"){
+  bp_stage_id <- purrr::map2(dep_info, indep_info, function(y, x) {
+    dep_bp <- decompose_model_component(y,
+                                        modeling_df,
+                                        is_weight_coefficient = dep_info_is_weight_coefficient,
+                                        apl_delimiter = apl_delimiter,
+                                        delimiter = delimiter,
+                                        var_agg_delimiter = var_agg_delimiter
+    )
+    indep_bp <- decompose_model_component(x,
+                                          modeling_df,
+                                          is_weight_coefficient = indep_info_is_weight_coefficient,
+                                          apl_delimiter = apl_delimiter,
+                                          delimiter = delimiter,
+                                          var_agg_delimiter = var_agg_delimiter
+    )
+    residual <- rowSums(dep_bp) - rowSums(indep_bp)
+    names(residual) <- "residual"
+    list(dep_bp,cbind(indep_bp, residual))
+  })
+  bp_stage_id
+}
+

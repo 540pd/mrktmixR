@@ -284,15 +284,16 @@ generate_apl_combinations <-
 generate_variable_combination <-
   function(variables_wt_apl_constraints) {
     variables_apl_combination <-
-      lapply(variables_wt_apl_constraints, function(x){
-        if(identical(names(x$adstock), c("start", "end", "step"))){
+      lapply(variables_wt_apl_constraints, function(x) {
+        if (identical(names(x$adstock), c("start", "end", "step"))) {
           generate_apl_combinations(x["adstock"],
                                     x["power"],
                                     x["lag"],
                                     x["constraints"])
         } else {
           x
-        }})
+        }
+      })
 
     if (length(variables_apl_combination) == 1) {
       variables_apl_combination <- list(variables_apl_combination)

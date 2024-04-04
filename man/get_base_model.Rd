@@ -2,84 +2,63 @@
 % Please edit documentation in R/model_base.R
 \name{get_base_model}
 \alias{get_base_model}
-\title{Get Base Model After Iteratively Dropping Variables}
+\title{Iteratively Refine Linear Model by Dropping Variables}
 \usage{
 get_base_model(
   lm_model,
   model_data,
-  independent_var_info,
-  pos_vars,
-  neg_vars,
-  var_agg_delimiter = "\\\\|",
-  run_up_to_flexi_vars = 10,
-  vif_threshold = 10,
-  pvalue_thresholds = c(intercept = 0.15, fixed = 0.15, flexible = 0.15),
-  drop_pvalue_precision = 2,
-  discard_estimate_sign = TRUE,
-  drop_highest_estimate = FALSE,
-  get_model_object = FALSE
+  expected_pos_sign,
+  critical_pvalue,
+  critical_vif,
+  flexi_vars,
+  run_up_to_flexi_vars,
+  drop_pvalue_precision,
+  discard_estimate_sign,
+  drop_highest_estimate,
+  defer_intercept_test,
+  always_check_vif
 )
 }
 \arguments{
-\item{lm_model}{The linear model object to be processed.}
+\item{lm_model}{A linear model object (of class \code{\link[stats]{lm}}).}
 
-\item{model_data}{Data used for modeling i.e. lm_model}
+\item{model_data}{Dataset used for fitting the \code{lm_model}.}
 
-\item{independent_var_info}{A data frame containing information about the
-independent variables in the model. It should contain columns for the variable,
-adstock, power, lag, and the type of variable being used in the model.}
+\item{expected_pos_sign}{Named numeric vector indicating the expected sign for each variable.}
 
-\item{pos_vars}{Character vector specifying which variables are expected to have
-a positive relationship with the response.}
+\item{critical_pvalue}{Named numeric vector indicating critical p-value threshold for determining variable significance.}
 
-\item{neg_vars}{Character vector specifying which variables are expected to have
-a negative relationship with the response.}
+\item{critical_vif}{Named numeric vector indicating critical VIF threshold for assessing multicollinearity.}
 
-\item{var_agg_delimiter}{Delimiter used in variable names for aggregation
-(default is "\\|").}
+\item{flexi_vars}{Character vector of variable names considered as flexible in the model.}
 
-\item{run_up_to_flexi_vars}{Integer indicating how many "flexible" variables to
-consider for retention in the final model (default is 10). This condition is
-checked only after a successful model is generated.}
+\item{run_up_to_flexi_vars}{Integer; number of flexible variables to consider for retention.}
 
-\item{vif_threshold}{The threshold for the variance inflation factor (VIF) above
-which variables will be considered for removal (default is 10).}
+\item{drop_pvalue_precision}{Integer; number of decimal places to round the p-values to.}
 
-\item{pvalue_thresholds}{Named numeric vector of p-value thresholds for
-"intercept", "fixed", and "flexible" variables (default is
-c(intercept = 0.15, fixed = 0.15, flexible = 0.15)).}
+\item{discard_estimate_sign}{Logical; if TRUE, the sign of the estimates is disregarded.}
 
-\item{drop_pvalue_precision}{Integer indicating the number of decimal places to
-round p-values to for the decision process (default is 2). This dilutes the
-p-values' weightage in choosing which variable to be dropped.}
+\item{drop_highest_estimate}{Logical; if TRUE, the variable with the highest estimate is dropped.}
 
-\item{discard_estimate_sign}{Logical indicating whether to disregard the sign of
-estimates in the decision process (default is TRUE). This guides if the sign of
-the Estimate should be considered while dropping a variable.}
+\item{defer_intercept_test}{Logical; if TRUE, the intercept test is deferred.}
 
-\item{drop_highest_estimate}{Logical indicating whether to always drop the
-variable with the highest estimate (default is FALSE).}
-
-\item{get_model_object}{Logical indicating whether to return the final model
-object (default is FALSE).}
+\item{always_check_vif}{Logical; if TRUE, VIF is always checked.}
 }
 \value{
-A list containing the data frame of model coefficients, the data frame of
-model summary statistics, and optionally the final model object if
-get_model_object is TRUE.
+A list containing two elements: a list of linear model objects after each iteration
+and a list of VIF values for each iteration.
 }
 \description{
-This function iteratively updates a linear model by dropping variables based on
-several criteria such as high p-values, high variance inflation factors (VIF),
-and the expected sign of the coefficients until no more variables meet the
-criteria for exclusion.
+This function iteratively updates a linear model by dropping variables based on several
+criteria such as expected sign of coefficients, critical p-values, and VIF (Variance
+Inflation Factor). Variables are dropped until no more meet the criteria for exclusion,
+refining the model at each step.
 }
 \examples{
 \dontrun{
-# lm_model is an lm object that has been fitted previously.
-# independent_var_info is a data frame with variables and types.
-# Example usage:
-get_base_model(lm_model, independent_var_info, pos_vars = c("var1", "var2"),
-               neg_vars = c("var3", "var4"), get_model_object = TRUE)
+  # Assuming lm_model and model_data are predefined
+  expected_pos_sign <- c(var1 = 1, var2 = -1) # Example
+  result <- get_base_model(lm_model, model_data, expected_pos_sign, 0.05, 5,
+                           c("var1", "var2"), 10, 2, TRUE, FALSE, FALSE, TRUE)
 }
 }

@@ -269,7 +269,6 @@ test_that("Replacement needed with variable aggregation", {
 })
 
 
-paste0("c(",paste(paste(as.numeric(result), collapse=","),"),c('",paste(names(result), collapse="', '")),"')")
 
 # Test Case 1: Both matching - aggregation & segregation
 test_that("Both matching - aggregation & segregation", {

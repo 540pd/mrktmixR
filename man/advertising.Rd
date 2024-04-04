@@ -3,29 +3,27 @@
 \docType{data}
 \name{advertising}
 \alias{advertising}
-\title{Advertising Dataset}
+\title{Advertising Data (Internal Use)}
 \format{
-A data frame with 13 rows and 4 variables:
+A data frame with 12 rows and 4 variables:
 \describe{
-\item{TV}{Advertising dollars spent on TV for a single product (in thousands of dollars).}
-\item{Radio}{Advertising dollars spent on Radio.}
-\item{Newspaper}{Advertising dollars spent on Newspaper.}
-\item{Sales}{Sales of a single product (in thousands of units).}
+\item{Sales}{Numeric vector representing simulated sales data.}
+\item{TV}{Numeric vector representing simulated TV advertising expenses.}
+\item{Radio}{Numeric vector representing simulated radio advertising expenses.}
+\item{Newspaper}{Numeric vector representing simulated newspaper advertising expenses.}
 }
-}
-\source{
-This dataset is a subset of the Advertising dataset from "An Introduction to Statistical Learning" (ISL).
 }
 \usage{
-advertising
+data(advertising)
 }
 \description{
-This dataset contains information about advertising spending and sales.
+A dataset containing simulated advertising expenses and sales figures
+over a period of 12 weeks starting from January 1, 2021. This data is
+purely fictional and is used for illustrative purposes and development
+within the package.
 }
 \examples{
-\dontrun{
-  head(advertising)
-}
-
+# This data is for internal development use only and not exported.
+data(advertising)
 }
 \keyword{datasets}

@@ -27,10 +27,15 @@
 #' initial_spend <- c(2, 2)
 #' lower_bound_spend <- c(-1000, -10000)
 #' upper_bound_spend <- c(10000, 10000)
-#' perform_optimization(constr_type, constr_value, alpha, beta, initial_spend, lower_bound_spend, upper_bound_spend)
+#' perform_optimization(constr_type, constr_value, alpha, beta, initial_spend, lower_bound_spend,
+#'  upper_bound_spend)
 #' }
 #'
 #' @importFrom nloptr nloptr
+#' @importFrom utils capture.output
+#' @importFrom stringr str_extract str_replace
+#' @importFrom purrr map
+#'
 #'
 #' @export
 perform_optimization <-
@@ -42,22 +47,21 @@ perform_optimization <-
            lower_bound_spend,
            upper_bound_spend) {
     if (grepl("Goal", constr_type, ignore.case = TRUE)) {
-      eval_f0 <- function(spend) {
+      eval_f0 <- function(spend, alpha, beta, constr_value) {
         k <- spend
         return(sum(k))
       }
-      eval_grad_f0 <- function(spend) {
+      eval_grad_f0 <- function(spend, alpha, beta, constr_value) {
         return(rep(1, length(spend)))
       }
-      eval_g0 <- function(spend) {
+      eval_g0 <- function(spend, alpha, beta, constr_value) {
         return(constr_value - sum(alpha * spend ^ beta))
       }
-      eval_jac_g0 <- function(spend) {
+      eval_jac_g0 <- function(spend, alpha, beta, constr_value) {
         return(-alpha * beta * spend ^ (beta - 1))
       }
     } else {
       eval_f0 <- function(spend, alpha, beta, constr_value) {
-        # k <- alpha * spend ^ beta
         return(-sum(alpha * spend ^ beta))
       }
       eval_grad_f0 <- function(spend, alpha, beta, constr_value) {
@@ -99,5 +103,13 @@ perform_optimization <-
       )
     })
 
-    return(opti$solution)
+    spend_steps <- optim_steps %>%
+      stringr::str_extract("^\\tx = (.*)") %>%
+      stringr::str_replace("^\\tx =", "c") %>%
+      purrr::map(~ eval(parse(text = .x)))
+    spend_steps <-
+      spend_steps[sapply(spend_steps, function(x)
+        any(!is.na(x)))]
+
+    return(list(steps = spend_steps, solution = opti$solution))
   }

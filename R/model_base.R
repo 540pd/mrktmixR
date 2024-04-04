@@ -107,7 +107,8 @@ identify_drop_variable <-
                                          "flag_pvalue",
                                          "flag_sign",
                                          "flag_vif")]
-    coef_df$flag_sum = rowSums(coef_df[, c("flag_pvalue", "flag_sign", "flag_vif"), drop=FALSE], na.rm = TRUE) != 0
+    coef_df$flag_sum = rowSums(coef_df[, c("flag_pvalue", "flag_sign", "flag_vif"), drop =
+                                         FALSE], na.rm = TRUE) != 0
     coef_df$"Pr(>|t|)"[coef_df$type == "intercept"] <-
       coef_df$"Pr(>|t|)"[coef_df$type == "intercept"] - 1
     coef_df$"Pr(>|t|)" <-
@@ -116,11 +117,12 @@ identify_drop_variable <-
       coef_df$Estimate <- abs(coef_df$Estimate)
     }
     if (highest_estimate) {
-      coef_order <- with(coef_df, order(-flag_sum, -`Pr(>|t|)`, -Estimate))
+      coef_order <-
+        with(coef_df, order(-flag_sum,-`Pr(>|t|)`,-Estimate))
     } else {
-      coef_order <- with(coef_df, order(-flag_sum, -`Pr(>|t|)`, Estimate))
+      coef_order <- with(coef_df, order(-flag_sum,-`Pr(>|t|)`, Estimate))
     }
-    coef_df <- coef_df[coef_order,]
+    coef_df <- coef_df[coef_order, ]
 
     if (sum(coef_df$flag_sum, na.rm = T) ||
         (nrow(coef_df) > run_up_to_flexi_vars)) {
@@ -453,17 +455,20 @@ get_base_model <- function(lm_model,
         pvalue_flag = model_coef[, 4] >= compare_named_vectors(model_coef[, 4], critical_pvalue)
       )
     if (always_check_vif ||
-        sum(c(model_coef[,"pvalue_flag"], model_coef[,"sign_flag"]),na.rm=T)==0) {
+        sum(c(model_coef[, "pvalue_flag"], model_coef[, "sign_flag"]), na.rm =
+            T) == 0) {
       mdl_vif <- calculate_vif(lm_model)
     } else {
       mdl_vif <-
         setNames(replicate(nrow(model_coef), NA), rownames(model_coef))
     }
     vif_accumulator <- c(vif_accumulator, list(mdl_vif))
-    model_coef <- cbind(model_coef, vif_flag = mdl_vif >= compare_named_vectors(mdl_vif, critical_vif))
+    model_coef <-
+      cbind(model_coef,
+            vif_flag = mdl_vif >= compare_named_vectors(mdl_vif, critical_vif))
 
     model_coef <-
-      cbind(model_coef, flag_sum = rowSums(model_coef[, 5:7,drop=FALSE], na.rm = T))
+      cbind(model_coef, flag_sum = rowSums(model_coef[, 5:7, drop = FALSE], na.rm = T))
 
     # If sign flag is T, reverse pvalue value flag
     model_coef[, 6] <- (model_coef[, 5] + model_coef[, 6]) %% 2
@@ -480,8 +485,8 @@ get_base_model <- function(lm_model,
 
     model_coef <-
       model_coef[order(
-        -model_coef[, "flag_sum"],
-        -model_coef[, "sign_flag"],-round(model_coef[, 4], drop_pvalue_precision),
+        -model_coef[, "flag_sum"],-model_coef[, "sign_flag"],
+        -round(model_coef[, 4], drop_pvalue_precision),
         if (discard_estimate_sign &&
             drop_highest_estimate)
           - abs(model_coef[, 1])
@@ -502,7 +507,8 @@ get_base_model <- function(lm_model,
     variable_to_drop <-
       rownames(model_coef[model_coef[, "flag_sum"] != 0, , drop = FALSE])[1]
     if (is.null(variable_to_drop)) {
-      model_coef_flexi_flag <- !is.na(model_coef[, "pvalue_flag", drop = FALSE])
+      model_coef_flexi_flag <-
+        !is.na(model_coef[, "pvalue_flag", drop = FALSE])
       if (run_up_to_flexi_vars < sum(model_coef_flexi_flag)) {
         variable_to_drop <-
           rownames(model_coef[model_coef_flexi_flag, , drop = FALSE])[1]

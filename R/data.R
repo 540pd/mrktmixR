@@ -29,8 +29,6 @@
 #' Each column has a name corresponding to a date in the format `Date_YYYY_MM_DD` with a binary
 #' indication of whether the event occurred on that date.
 #' @usage data(events)
-#' @export
 #' @examples
 #' # This data is for internal development use only and not exported.
 #' data(events)
-"events"

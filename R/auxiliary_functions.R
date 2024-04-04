@@ -22,7 +22,7 @@ convert_to_named_seq <-
   function(char_vector, delimiter, names_vector) {
     char_vector %>%
       stringr::str_split(stringr::fixed(delimiter)) %>%
-      purrr::map(~ setNames(as.numeric(.x), names_vector))
+      purrr::map( ~ setNames(as.numeric(.x), names_vector))
   }
 
 #' Name and Truncate List
@@ -69,7 +69,7 @@ name_and_truncate_list <- function(list_to_name, var_names) {
 split_and_convert_to_numeric <- function(char_vector, delimiter) {
   char_vector %>%
     stringr::str_split(delimiter) %>%
-    map(~ as.numeric(.x))
+    map( ~ as.numeric(.x))
 }
 
 #' Create Named Lists from Variables with Predefined Pairs
@@ -129,13 +129,13 @@ replace_values_pairwise <-
     if (length(conditions_replacements) != length(replacement_values)) {
       stop("Length of conditions_replacements and replacement_values should be the same.")
     }
-    condition_tracker<-replicate(length(input_vector),F)
+    condition_tracker <- replicate(length(input_vector), F)
     for (i in seq_along(conditions_replacements)) {
       condition <- conditions_replacements[i]
       replacement <- replacement_values[i]
       match_index <- input_vector == condition
       input_vector[match_index & !condition_tracker] <- replacement
-      condition_tracker[match_index]<-T
+      condition_tracker[match_index] <- T
     }
     return(input_vector)
   }
@@ -169,72 +169,77 @@ replace_values_pairwise <-
 #' @examples
 #' \dontrun{
 #' # Both matching - aggregation and segregation
-#' previous_var_apl <- c("var1|A_.2_2_5" = 0.5, "var1|A_.2_2_9" = 0.5, "var2|B_.5_.4_.2" = 0.3, "var2|B_.5_.1_.2" = 0.4, "var2|B_.5_.1_9" = 0.4, "afaf_2_3_4" = 0)
-#' current_var_apl <- c("var1|A_.2_2_5" = 0.6, "var1|A_.2_2_9" = 0.6, "var2|B_.5_.4_.2" = 0.9, "var2|B_.5_.4_.2" = 10)
+#' previous_var_apl <- c("var1|A_.2_2_5" = 0.5, "var1|A_.2_2_9" = 0.5, "var2|B_.5_.4_.2" = 0.3,
+#'  "var2|B_.5_.1_.2" = 0.4, "var2|B_.5_.1_9" = 0.4, "afaf_2_3_4" = 0)
+#' current_var_apl <- c("var1|A_.2_2_5" = 0.6, "var1|A_.2_2_9" = 0.6, "var2|B_.5_.4_.2" = 0.9,
+#'  "var2|B_.5_.4_.2" = 10)
 #' scope_for_dependent_variable(previous_var_apl, current_var_apl)
 #'
 #' # Aggregation and carry forward
-#' previous_var_apl <- c("var3_.2_2_5" = 0.5, "B_.5_.4_.2" = 0.3, "var3_.2_9_5" = 0.78, "B_.9_.4_.2" = 0.33, "d_1_2_4" = 0)
-#' current_var_apl <- c("var3|B_2_4_9" = 0.9, "var3|B_2_4_2" = 0.9, "var3|B_2_4_2" = 10, "var3|B_2_4_2" = 11)
+#' previous_var_apl <- c("var3_.2_2_5" = 0.5, "B_.5_.4_.2" = 0.3, "var3_.2_9_5" = 0.78,
+#'  "B_.9_.4_.2" = 0.33, "d_1_2_4" = 0)
+#' current_var_apl <- c("var3|B_2_4_9" = 0.9, "var3|B_2_4_2" = 0.9, "var3|B_2_4_2" = 10,
+#'  "var3|B_2_4_2" = 11)
 #' scope_for_dependent_variable(previous_var_apl, current_var_apl)
 #'
 #' # Segregation and carry forward
-#' previous_var_apl <- c("var1|c_.2_2_5" = 0.5, "var1|c_.2_2_1" = 0.5, "d_1_2_4" = 0, "d_1_2_1" = 0)
-#' current_var_apl <- c("var1_2_4_2" = 0.9, "c_.5_.4_.2" = 0.9, "var1_2_4_2" = 11, "c_.5_.4_.2" = 0.10, "c_.5_.4_.2" = 0.10, "c_.5_.4_9" = 0.10)
+#' previous_var_apl <- c("var1|c_.2_2_5" = 0.5, "var1|c_.2_2_1" = 0.5, "d_1_2_4" = 0,
+#'  "d_1_2_1" = 0)
+#' current_var_apl <- c("var1_2_4_2" = 0.9, "c_.5_.4_.2" = 0.9, "var1_2_4_2" = 11,
+#'  "c_.5_.4_.2" = 0.10, "c_.5_.4_.2" = 0.10, "c_.5_.4_9" = 0.10)
 #' scope_for_dependent_variable(previous_var_apl, current_var_apl)
 #'
 #' }
 #'
-scope_for_dependent_variable <- function(previous_var_apl, current_var_apl, var_agg_delimiter = "|", delimiter = "_") {
-  if (var_agg_delimiter == delimiter) {
-    stop("var_agg_delimiter and delimiter cannot be the same.")
-  }
-  previous_var_wo_apl_ori <- sapply(stringr::str_split(
-    names(previous_var_apl),
-    stringr::fixed(delimiter)
-  ), function(x) x[1])
-  previous_var_wo_apl <- unique(previous_var_wo_apl_ori)
-  current_var_wo_apl_ori <- sapply(stringr::str_split(
-    names(current_var_apl),
-    stringr::fixed(delimiter)
-  ), function(x) x[1])
-  current_var_wo_apl <- unique(current_var_wo_apl_ori)
-  previous_vars_wo_apl <- stringr::str_split(previous_var_wo_apl, stringr::fixed(var_agg_delimiter))
-  current_vars_wo_apl <- stringr::str_split(current_var_wo_apl, stringr::fixed(var_agg_delimiter))
-  previous_var_in_current_vars <- sapply(
-    previous_vars_wo_apl,
-    function(x) all(x %in% unlist(current_vars_wo_apl))
-  )
-  feasible_dependent_variables <- if (all(sapply(
-    current_var_wo_apl,
-    function(x) x %in% previous_var_wo_apl
-  ))) {
-    previous_var_wo_apl
-  } else if (length(current_vars_wo_apl) > 1 && sum(unlist(previous_var_in_current_vars)) ==
-             1) {
-    c(
-      previous_var_wo_apl[!previous_var_in_current_vars],
-      current_var_wo_apl
-    )
-  } else if (length(current_vars_wo_apl) == 1 && length(previous_vars_wo_apl) >
-             1 && length(purrr::reduce(
-               unlist(current_vars_wo_apl),
-               unlist(previous_vars_wo_apl), setdiff
-             )) == 0) {
-    c(
-      previous_var_wo_apl[!previous_var_in_current_vars],
-      current_var_wo_apl
-    )
-  } else {
-    previous_var_wo_apl
-  }
+scope_for_dependent_variable <-
+  function(previous_var_apl,
+           current_var_apl,
+           var_agg_delimiter = "|",
+           delimiter = "_") {
+    if (var_agg_delimiter == delimiter) {
+      stop("var_agg_delimiter and delimiter cannot be the same.")
+    }
+    previous_var_wo_apl_ori <- sapply(stringr::str_split(names(previous_var_apl),
+                                                         stringr::fixed(delimiter)), function(x)
+                                                           x[1])
+    previous_var_wo_apl <- unique(previous_var_wo_apl_ori)
+    current_var_wo_apl_ori <- sapply(stringr::str_split(names(current_var_apl),
+                                                        stringr::fixed(delimiter)), function(x)
+                                                          x[1])
+    current_var_wo_apl <- unique(current_var_wo_apl_ori)
+    previous_vars_wo_apl <-
+      stringr::str_split(previous_var_wo_apl, stringr::fixed(var_agg_delimiter))
+    current_vars_wo_apl <-
+      stringr::str_split(current_var_wo_apl, stringr::fixed(var_agg_delimiter))
+    previous_var_in_current_vars <- sapply(previous_vars_wo_apl,
+                                           function(x)
+                                             all(x %in% unlist(current_vars_wo_apl)))
+    feasible_dependent_variables <- if (all(sapply(current_var_wo_apl,
+                                                   function(x)
+                                                     x %in% previous_var_wo_apl))) {
+      previous_var_wo_apl
+    } else if (length(current_vars_wo_apl) > 1 &&
+               sum(unlist(previous_var_in_current_vars)) ==
+               1) {
+      c(previous_var_wo_apl[!previous_var_in_current_vars],
+        current_var_wo_apl)
+    } else if (length(current_vars_wo_apl) == 1 &&
+               length(previous_vars_wo_apl) >
+               1 && length(purrr::reduce(
+                 unlist(current_vars_wo_apl),
+                 unlist(previous_vars_wo_apl),
+                 setdiff
+               )) == 0) {
+      c(previous_var_wo_apl[!previous_var_in_current_vars],
+        current_var_wo_apl)
+    } else {
+      previous_var_wo_apl
+    }
 
-  return(c(
-    current_var_apl[current_var_wo_apl_ori %in% current_var_wo_apl[current_var_wo_apl %in% feasible_dependent_variables]],
-    previous_var_apl[previous_var_wo_apl_ori %in% previous_var_wo_apl[previous_var_wo_apl %in% feasible_dependent_variables[!feasible_dependent_variables %in%
-                                                                                                                              current_var_wo_apl]]]
-  ))
-}
+    return(c(current_var_apl[current_var_wo_apl_ori %in% current_var_wo_apl[current_var_wo_apl %in% feasible_dependent_variables]],
+             previous_var_apl[previous_var_wo_apl_ori %in% previous_var_wo_apl[previous_var_wo_apl %in% feasible_dependent_variables[!feasible_dependent_variables %in%
+                                                                                                                                       current_var_wo_apl]]]))
+  }
 
 #' Create File Path
 #'
@@ -249,16 +254,13 @@ scope_for_dependent_variable <- function(previous_var_apl, current_var_apl, var_
 #' create_file_path("data", "example.csv")
 #' create_file_path("output", "result.txt", relative_directory = "project")
 #' }
-create_file_path <- function(folder, file_name, relative_directory = ".") {
-  # Check if the suffix indicates a CSV file
-  path.expand(
-    file.path(
-      normalizePath(relative_directory),
-      folder,
-      file_name
-    )
-  )
-}
+create_file_path <-
+  function(folder, file_name, relative_directory = ".") {
+    # Check if the suffix indicates a CSV file
+    path.expand(file.path(normalizePath(relative_directory),
+                          folder,
+                          file_name))
+  }
 
 #' Slowly Changing Dimension Type 2 Update Function
 #'
@@ -320,133 +322,60 @@ scd_type_2_update <-
       base_data[[update_date]] <- as.POSIXct(NA)
     }
 
-    if(nrow(current_data)!=0){
+    if (nrow(current_data) != 0) {
       current_data[[create_date]] <- Sys.time()
       current_data[[update_date]] <- as.POSIXct(NA)
       current_data[["source_current"]] = TRUE
 
       current_base_data <- current_data %>%
         full_join(
-          base_data %>% filter(is.na(get(update_date)))  %>% mutate(source_base = TRUE),
+          base_data %>% dplyr::filter(is.na(get(update_date)))  %>% dplyr::mutate(source_base = TRUE),
           by = row_ids,
           suffix = c("", "_base")
         )
 
       # data present in current but not in base - new data
-      new_data_added<-current_base_data[is.na(current_base_data$source_base) & !is.na(current_base_data$source_current),names(current_data)]
+      new_data_added <-
+        current_base_data[is.na(current_base_data$source_base) &
+                            !is.na(current_base_data$source_current), names(current_data)]
 
       # common ids data
-      common_data<-current_base_data[!is.na(current_base_data$source_base) & !is.na(current_base_data$source_current),]
-      common_data$is_difference <- rowSums(abs(common_data[,compare_cols, drop = F] - common_data[,paste(compare_cols,"base",sep="_"), drop= F])!=0)
+      common_data <-
+        current_base_data[!is.na(current_base_data$source_base) &
+                            !is.na(current_base_data$source_current), ]
+      common_data$is_difference <-
+        rowSums(abs(common_data[, compare_cols, drop = F] - common_data[, paste(compare_cols, "base", sep =
+                                                                                  "_"), drop = F]) != 0)
       common_data <- common_data %>%
         group_by(across(tidyselect::all_of(row_ids))) %>%
         mutate(row_ids_diff = sum(.data$is_difference))
-      common_data[common_data$row_ids_diff!=0,paste0(update_date,"_base")]<-common_data[common_data$row_ids_diff!=0,create_date]
+      common_data[common_data$row_ids_diff != 0, paste0(update_date, "_base")] <-
+        common_data[common_data$row_ids_diff != 0, create_date]
 
       # udpate any previous change in changes ids
-      current_old_data<-current_base_data[!is.na(current_base_data$source_base) & is.na(current_base_data$source_current),c(row_ids,names(current_base_data)[names(current_base_data)  %in%   paste(names(base_data),"base",sep = "_")])]
-      current_old_data<-current_old_data %>%
-        dplyr::left_join(unique(common_data[,c(changes_ids,create_date)]), by = changes_ids)
-      current_old_data[,paste0(update_date,"_base")]<-current_old_data[,create_date]
-      current_old_data<-current_old_data[,names(current_old_data) != create_date]
+      current_old_data <-
+        current_base_data[!is.na(current_base_data$source_base) &
+                            is.na(current_base_data$source_current), c(row_ids, names(current_base_data)[names(current_base_data)  %in%   paste(names(base_data), "base", sep = "_")])]
+      current_old_data <- current_old_data %>%
+        dplyr::left_join(unique(common_data[, c(changes_ids, create_date)]), by = changes_ids)
+      current_old_data[, paste0(update_date, "_base")] <-
+        current_old_data[, create_date]
+      current_old_data <-
+        current_old_data[, names(current_old_data) != create_date]
 
-      old_data_updated<-rbind(
-        current_old_data,
-        common_data[,c(row_ids,names(current_base_data)[names(current_base_data)  %in%   paste(names(base_data),"base",sep = "_")])])
-      names(old_data_updated)<-c(row_ids,sub("_base","",names(old_data_updated)[!names(old_data_updated) %in% row_ids]))
+      old_data_updated <- rbind(current_old_data,
+                                common_data[, c(row_ids, names(current_base_data)[names(current_base_data)  %in%   paste(names(base_data), "base", sep = "_")])])
+      names(old_data_updated) <-
+        c(row_ids, sub("_base", "", names(old_data_updated)[!names(old_data_updated) %in% row_ids]))
 
-      new_data_added<- rbind(common_data[common_data$row_ids_diff!=0,names(current_data)],
-                             current_base_data[is.na(current_base_data$source_base) & !is.na(current_base_data$source_current),names(current_data)])
+      new_data_added <-
+        rbind(common_data[common_data$row_ids_diff != 0, names(current_data)],
+              current_base_data[is.na(current_base_data$source_base) &
+                                  !is.na(current_base_data$source_current), names(current_data)])
 
-      rbind(old_data_updated, new_data_added[, !names(new_data_added) %in% "source_current"])
+      rbind(old_data_updated, new_data_added[,!names(new_data_added) %in% "source_current"])
     }
     else {
       base_data
     }
   }
-
-#' Compare Named Vectors
-#'
-#' This function compares two named numeric vectors. It creates a new vector
-#' with names from the base vector and values matched from the comparison vector.
-#' If a name in the base vector does not exist in the comparison vector,
-#' its corresponding value in the output is set to NA.
-#'
-#' @param base_vector A named numeric vector that serves as the base for comparison.
-#' @param comparison_vector A named numeric vector that is compared against the base vector.
-#'
-#' @return A named numeric vector where each element from the base vector is matched
-#'         with the corresponding element in the comparison vector by name.
-#'         If a name from the base vector does not exist in the comparison vector,
-#'         the corresponding value in the returned vector is NA.
-#'
-#' @examples
-#' \dontrun{
-#' base_vector <- c(Alice = 10, Bob = 15, Charlie = 20)
-#' comparison_vector <- c(Alice = 5, David = 18, Bob = 12)
-#' compare_named_vectors(base_vector, comparison_vector)
-#' }
-#'
-compare_named_vectors <- function(base_vector, comparison_vector) {
-  # Create a new vector 'comparison_matched' with names from 'base_vector' and all values as NA
-  comparison_matched <- setNames(rep(NA, length(base_vector)), names(base_vector))
-
-  # Find the matching names between 'base_vector' and 'comparison_vector' for efficient updating
-  matching_names <- names(base_vector) %in% names(comparison_vector)
-
-  # Update 'comparison_matched' only for matching names, avoiding unnecessary operations
-  comparison_matched[matching_names] <- comparison_vector[names(comparison_matched)[matching_names]]
-
-  return(comparison_matched)
-}
-
-#' Compare and print named vectors
-#'
-#' Compare two named vectors and print the differences between them.
-#'
-#' @param first_vector A named vector.
-#' @param second_vector A named vector.
-#' @param acceptable_difference Threshold for acceptable difference.
-#'
-#' @return This function does not return any value. It prints the differences between the two vectors.
-#'
-#' @examples
-#' first_vector <- c(a = 1, b = 2, c = 3)
-#' second_vector <- c(a = 1, b = 4, d = 5)
-#' compare_and_print_differences(first_vector, second_vector, acceptable_difference = 1)
-#'
-#' @import dplyr::filter
-#' @export
-compare_and_print_differences <- function(first_vector, second_vector, acceptable_difference = NULL) {
-  # Extract names of each vector
-  names1 <- names(first_vector)
-  names2 <- names(second_vector)
-
-  # Find names present in one vector but not the other
-  names_only_in_first <- setdiff(names1, names2)
-  names_only_in_second <- setdiff(names2, names1)
-
-  # Find elements that have different values in both vectors
-  differences_df <- data.frame(
-    Name = intersect(names1, names2),
-    First_Vector = first_vector[intersect(names1, names2)],
-    Second_Vector = second_vector[intersect(names1, names2)],
-    Difference = -(first_vector[intersect(names1, names2)] - second_vector[intersect(names1, names2)])
-  )
-  if (!(is.null(acceptable_difference) || is.na(acceptable_difference))) {
-    differences_df <- dplyr::filter(differences_df, abs(Difference) > acceptable_difference)
-  }
-
-  # Print differences if any are found
-  if (length(names_only_in_first) > 0) {
-    cat("Names only in first vector:", names_only_in_first, "\n")
-  }
-  if (length(names_only_in_second) > 0) {
-    cat("Names only in second vector:", names_only_in_second, "\n")
-  }
-  if (nrow(differences_df) > 0) {
-    cat("Elements with different values:\n")
-    print(differences_df)
-  }
-}
-

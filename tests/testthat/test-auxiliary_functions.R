@@ -267,3 +267,41 @@ test_that("Replacement needed with variable aggregation", {
                  "var3C_0.4_1_0.2" = 0.7
                ))
 })
+
+
+paste0("c(",paste(paste(as.numeric(result), collapse=","),"),c('",paste(names(result), collapse="', '")),"')")
+
+# Test Case 1: Both matching - aggregation & segregation
+test_that("Both matching - aggregation & segregation", {
+  previous_var_apl <- c("var1|A_.2_2_5"=.5, "var1|A_.2_2_9"=.5, "var2|B_.5_.4_.2" = .3,  "var2|B_.5_.1_.2" = .4, "var2|B_.5_.1_9" = .4,"afaf_2_3_4"=0)
+  current_var_apl <- c("var1|A_.2_2_5"=.6, "var1|A_.2_2_9"=.6, "var2|B_.5_.4_.2" =.9, "var2|B_.5_.4_.2" =10)
+  expected_output <- setNames(c(0.6,0.6,0.9,10,0), c("var1|A_.2_2_5","var1|A_.2_2_9","var2|B_.5_.4_.2","var2|B_.5_.4_.2","afaf_2_3_4"))
+  result <- scope_for_dependent_variable(previous_var_apl, current_var_apl)
+  expect_identical(result, expected_output)
+})
+
+test_that("Aggregation & carry forward - specific case", {
+  previous_var_apl <- c("var3_.2_2_5"=.5, "B_.5_.4_.2" = .3,"d_1_2_4"=0)
+  current_var_apl <- c("var3|B_2_4_9" =.9,"var3|B_2_4_2" =.9, "var3|B_2_4_2" =10, "var3|B_2_4_2" =11)
+  expected_output <- setNames(c(0.9,0.9,10,11,0 ),c('var3|B_2_4_9', 'var3|B_2_4_2', 'var3|B_2_4_2', 'var3|B_2_4_2', 'd_1_2_4'))
+  result <- scope_for_dependent_variable(previous_var_apl, current_var_apl)
+  expect_identical(result, expected_output)
+})
+
+# Test Case 2: Aggregation & carry forward
+test_that("Aggregation & carry forward", {
+  previous_var_apl <- c("var3_.2_2_5"=.5, "B_.5_.4_.2" = .3,"var3_.2_9_5"=.78, "B_.9_.4_.2" = .33,  "d_1_2_4"=0)
+  current_var_apl <- c("var3|B_2_4_9" =.9,"var3|B_2_4_2" =.9, "var3|B_2_4_2" =10, "var3|B_2_4_2" =11)
+  expected_output <- setNames(c(0.9,0.9,10,11,0),c('var3|B_2_4_9', 'var3|B_2_4_2', 'var3|B_2_4_2', 'var3|B_2_4_2', 'd_1_2_4'))
+  result <- scope_for_dependent_variable(previous_var_apl, current_var_apl)
+  expect_identical(result, expected_output)
+})
+
+# Test Case 3: Segregation & carry forward
+test_that("Segregation & carry forward", {
+  previous_var_apl <- c("var1|c_.2_2_5"=.5,"var1|c_.2_2_1"=.5,  "d_1_2_4"=0, "d_1_2_1"=0)
+  current_var_apl <- c("var1_2_4_2" =.9, "c_.5_.4_.2" =.9,"var1_2_4_2" =11, "c_.5_.4_.2" =.10,"c_.5_.4_.2" =.10, "c_.5_.4_9" =.10)
+  expected_output <- setNames(c(0.9,0.9,11,0.1,0.1,0.1,0,0),c('var1_2_4_2', 'c_.5_.4_.2', 'var1_2_4_2', 'c_.5_.4_.2', 'c_.5_.4_.2', 'c_.5_.4_9', 'd_1_2_4', 'd_1_2_1'))
+  result <- scope_for_dependent_variable(previous_var_apl, current_var_apl)
+  expect_identical(result, expected_output)
+})

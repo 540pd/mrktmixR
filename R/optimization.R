@@ -42,52 +42,62 @@ perform_optimization <-
            lower_bound_spend,
            upper_bound_spend) {
     if (grepl("Goal", constr_type, ignore.case = TRUE)) {
-      eval_f1 <- function(spend) {
+      eval_f0 <- function(spend) {
         k <- spend
         return(sum(k))
       }
-      eval_grad <- function(spend) {
+      eval_grad_f0 <- function(spend) {
         return(rep(1, length(spend)))
       }
-      eval_g_eq1 <- function(spend) {
+      eval_g0 <- function(spend) {
         return(constr_value - sum(alpha * spend ^ beta))
       }
-      eval_eq_jac <- function(spend) {
+      eval_jac_g0 <- function(spend) {
         return(-alpha * beta * spend ^ (beta - 1))
       }
     } else {
-      eval_f1 <- function(spend) {
-        k <- alpha * spend ^ beta
-        return(-sum(k))
+      eval_f0 <- function(spend, alpha, beta, constr_value) {
+        # k <- alpha * spend ^ beta
+        return(-sum(alpha * spend ^ beta))
       }
-      eval_grad <- function(spend) {
-        return(-alpha * beta * spend ^ (beta - 1))
+      eval_grad_f0 <- function(spend, alpha, beta, constr_value) {
+        return(c(-alpha * beta * spend ^ (beta - 1)))
       }
-      eval_g_eq1 <- function(spend) {
-        return(constr_value - sum(spend))
+      eval_g0 <- function(spend, alpha, beta, constr_value) {
+        return(sum(spend) - constr_value)
       }
-      eval_eq_jac <- function(spend) {
-        return(rep(-1, length(spend)))
+      eval_jac_g0 <- function(spend, alpha, beta, constr_value) {
+        return(rep(1, length(spend)))
       }
     }
 
     opts <- list(
       "algorithm" = "NLOPT_LD_SLSQP",
-      "xtol_rel" = 1e-16,
-      "print_level" = 0,
-      "maxeval" = 50000
+      #NLOPT_LN_COBYLA,NLOPT_LD_SLSQP,NLOPT_LD_MMA
+      "xtol_rel" = 1e-10,
+      "print_level" = 3,
+      "maxeval" = 1e5
+      # ,
+      # "check_derivatives" = TRUE,
+      # "check_derivatives_print" = "all"
     )
 
-    opti = nloptr(
-      x0 = initial_spend,
-      eval_f = eval_f1,
-      eval_grad_f = eval_grad,
-      eval_g_eq = eval_g_eq1,
-      eval_jac_g_eq = eval_eq_jac,
-      lb = lower_bound_spend,
-      ub = upper_bound_spend,
-      opts = opts
-    )
+
+    optim_steps <- capture.output({
+      opti <- nloptr(
+        x0 = initial_spend,
+        eval_f = eval_f0,
+        eval_grad_f = eval_grad_f0,
+        eval_g_ineq = eval_g0,
+        eval_jac_g_ineq = eval_jac_g0,
+        lb = lower_bound_spend,
+        ub = upper_bound_spend,
+        opts = opts,
+        alpha = alpha,
+        beta = beta,
+        constr_value = constr_value
+      )
+    })
 
     return(opti$solution)
   }

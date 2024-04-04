@@ -60,42 +60,176 @@ generate_circles <- function(x, max_radius = 10, min_radius = 5, circle_color = 
   return(circles)
 }
 
-#' Format numeric vector into human-readable pretty format
+
+#' Abbreviate Number
 #'
-#' This function formats a numeric vector into a human-readable format with appropriate prefixes and suffixes.
+#' This function abbreviates large numbers using a standardized notation.
 #'
-#' @param spend_vector A numeric vector containing the values to be formatted.
-#' @param prefix The prefix to be added before the formatted numbers (default is "$").
-#' @param million_round_dp The number of decimal places to round for numbers in millions (default is 1).
+#' @param number A numeric vector containing the numbers to be abbreviated.
 #'
-#' @return A character vector containing the formatted numbers with prefixes and suffixes.
+#' @return A list containing the abbreviated numbers and their corresponding suffixes.
 #'
-#' @details
-#' The function formats numeric values in the spend_vector into a more readable format with appropriate prefixes and suffixes.
-#' The suffixes used are: "B" for billion, "M" for million, "K" for thousand, and "H" for hundred.
-#' The function rounds the numbers and adds suffixes accordingly.
+#' @details This function takes a numeric vector and abbreviates large numbers using a standardized notation, such as "K" for thousand, "M" for million, etc. It calculates the appropriate abbreviation based on the magnitude of the input numbers.
+#' The following abbreviations are used:
+#'   - H: Hundred (10^2)
+#'   - K: Thousand (10^3)
+#'   - M: Million (10^6)
+#'   - B: Billion (10^9)
+#'   - T: Trillion (10^12)
+#'   - Q: Quadrillion (10^15)
+#'   - QQ: Quintillion (10^18)
+#'   - S: Sextillion (10^21)
+#'   - SS: Septillion (10^24)
+#'   - O: Octillion (10^27)
+#'   - N: Nonillion (10^30)
+#'   - D: Decillion (10^33)
+#'   - UD: Undecillion (10^36)
+#'   - DDD: Duodecillion (10^39)
+#'   - TD: Tredecillion (10^42)
+#'   - QD: Quattuordecillion (10^45)
+#'   - QTD: Quindecillion (10^48)
+#'   - SD: Sexdecillion (10^51)
+#'   - SSD: Septendecillion (10^54)
+#'   - OD: Octodecillion (10^57)
+#'   - NND: Novemdecillion (10^60)
+#'   - V: Vigintillion (10^63)
+#'   - UV: Unvigintillion (10^66)
+#'   - DV: Duovigintillion (10^69)
+#'   - TV: Trevigintillion (10^72)
+#'   - QV: Quattuorvigintillion (10^75)
+#'   - QTV: Quinvigintillion (10^78)
+#'   - SV: Sexvigintillion (10^81)
+#'   - SSV: Septenvigintillion (10^84)
+#'   - OV: Octovigintillion (10^87)
+#'   - NNV: Novemvigintillion (10^90)
+#'   - X: Trigintillion (10^93)
 #'
 #' @examples
 #' \dontrun{
-#' spend_vector <- c(100, 1000, 10000, 1000000, 10000000)
-#' format_number(spend_vector)
-#'}
+#' # Do not run examples because they may take a long time
+#' abbreviate_number(c(1000, 1000000, 1000000000))
+#' }
 #'
-#' @importFrom purrr map2_vec
 #' @importFrom dplyr if_else
 #' @export
-format_number <- function(spend_vector, prefix = "$", million_round_dp = 1) {
-  suffix <- dplyr::if_else(spend_vector >= 1e9, "B", dplyr::if_else(spend_vector >= 1e6, "M", dplyr::if_else(spend_vector >= 1e3, "K", "H")))
-  round_digit <- dplyr::if_else(suffix == "B", -9, dplyr::if_else(suffix == "M", -6, dplyr::if_else(suffix == "K", -3, 0)))
-  round_digit <- dplyr::if_else(suffix %in% c("B", "M"), round_digit + million_round_dp, round_digit)
-  approx_spend <- purrr::map2_vec(spend_vector, round_digit, function(x, y) round(x, digits = y))
-  formatted_spend <- dplyr::if_else(suffix == "B", format(round(approx_spend / 1e9, 0), nsmall = 0),
-                                    dplyr::if_else(suffix == "M", format(round(approx_spend / 1e6, million_round_dp), nsmall = million_round_dp),
-                                                   dplyr::if_else(suffix == "K", paste0(approx_spend / 1e3), paste0(round(approx_spend)))
-                                    )
+abbreviate_number <- function(number) {
+  # Define the abbreviations
+  abbreviations <- c("H", "K", "M", "B", "T", "Q", "QQ", "S", "SS", "O", "N", "D",
+                     "UD", "DDD", "TD", "QD", "QTD", "SD", "SSD", "OD", "NND", "V",
+                     "UV", "DV", "TV", "QV", "QTV", "SV", "SSV", "OV", "NNV", "X")
+
+  # Determine the exponent
+  exponent <- floor(log10(abs(number)) / 3)
+  exponent <- pmin(exponent, length(abbreviations) - 1)
+
+  arrox_number <- dplyr::if_else(exponent >= 0 & exponent < length(abbreviations),
+                                 number / 10^(exponent * 3),
+                                 number)
+
+  suffix <- rep("", length(number))
+  suffix[exponent > 0 & exponent < length(abbreviations)] <- abbreviations[exponent[exponent > 0 & exponent < length(abbreviations)] + 1]
+  suffix[exponent < 0] <- "-"
+
+  return(list(arrox_number, factor(suffix, levels = c("-", "", abbreviations), ordered = TRUE)))
+}
+
+#' Format Number
+#'
+#' This function formats numeric vectors according to specified notation and rounding rules.
+#'
+#' @param numeric_vector A numeric vector containing the numbers to be formatted.
+#' @param notation An ordered factor specifying the notation for each number in numeric_vector.
+#' @param round_digit_mapping A named numeric vector specifying the number of digits to round each notation to (default is set to 2 for "M" notation).
+#' @param prefix A prefix string to be added before each formatted number (default is empty).
+#'
+#' @return A character vector containing the formatted numbers with the specified notation and rounding.
+#'
+#' @details This function formats numeric vectors based on the specified notation and rounding rules.
+#' It rounds the numbers according to the specified digits for each notation and adds a prefix string if provided.
+#' The 'notation' parameter should be an ordered factor with levels representing the notation for each number in 'numeric_vector'.
+#' The 'round_digit_mapping' parameter is a named numeric vector where the names represent the notations and the values represent the number of digits to round to.
+#' The default rounding is set to 2 digits for "M" notation.
+#'
+#' Numbers with corresponding notation greater than the name of 'round_digit_mapping' will be rounded to 0.
+#' Numbers with corresponding notation equal to the name of 'round_digit_mapping' will be rounded to the value of 'round_digit_mapping'.
+#' Numbers greater than or equal to 1 with corresponding notation less than the name of 'round_digit_mapping' will be rounded to the value of 'round_digit_mapping'.
+#' Numbers less than 1 will be converted to a significant number of 'round_digit_mapping'.
+#'
+#' @examples
+#' \dontrun{
+#' format_number(c(1234567, 9876543), ordered(c("M", "K")), round_digit_mapping = c(M = 2, K = 1), prefix = "$")
+#' }
+#'
+#' @importFrom purrr map_vec
+#' @export
+format_number <- function(numeric_vector, notation, round_digit_mapping = setNames(2, "M"), prefix = "") {
+  numeric_vector[notation > names(round_digit_mapping)] <- round(numeric_vector[notation > names(round_digit_mapping)], 0)
+  numeric_vector[notation == names(round_digit_mapping)] <- round(numeric_vector[notation == names(round_digit_mapping)], as.numeric(round_digit_mapping))
+  numeric_vector[numeric_vector >= 1 & notation < names(round_digit_mapping)] <- round(numeric_vector[numeric_vector >= 1 & notation < names(round_digit_mapping)], as.numeric(round_digit_mapping))
+  numeric_vector[numeric_vector < 1 & notation < names(round_digit_mapping)] <- signif(numeric_vector[numeric_vector < 1 & notation < names(round_digit_mapping)], as.numeric(round_digit_mapping))
+
+  notation[notation == "-"] <- ""
+  paste(prefix, purrr::map_vec(numeric_vector, ~ format(.x, trim = TRUE, big.mark = ",", scientific = FALSE)), as.character(notation), sep = "")
+}
+
+#' Saturation Curve
+#'
+#' Calculate and visualize saturation curves based on input parameters.
+#'
+#' @param x_axis Numeric vector representing the x-axis values, typically impressions or spend.
+#' @param alpha Numeric vector representing the coefficient values for each channel.
+#' @param beta Numeric vector representing the power values for each channel.
+#' @param channels Character vector representing the channel names.
+#'                 If character, it represents the channel names.
+#'                 If factor, it allows changing the order of legend levels based on the factor levels.
+#'
+#' @return A ggplot object visualizing the saturation curves.
+#'
+#' @details This function calculates and visualizes saturation curves based on the input parameters: x-axis values, alpha values (coefficients), beta values (powers), and channel names.
+#' The contribution for each channel is calculated using the formula: contribution = alpha * (x_axis^beta).
+#' The resulting plot includes points, text labels, and line segments representing the saturation curves for each channel.
+#'
+#' @import ggplot2
+#' @export
+saturation_curve <- function(x_axis, alpha, beta, channels,round_digit_mapping = setNames(2, "M"), y_axis_func = function(x, alpha, beta) {alpha * (x^beta)}) {
+
+  # Create a data frame
+  input_data <- data.frame(channels, alpha, x_axis, beta)
+
+  # Calculate contribution
+  contribution <- y_axis_func(input_data[["x_axis"]], input_data[["alpha"]], input_data[["beta"]])
+
+  # Format contribution
+  contribution_formatted <- format_number(
+    abbreviate_number(contribution)[[1]],
+    abbreviate_number(contribution)[[2]],
+    round_digit_mapping = round_digit_mapping,
+    prefix = ""
   )
-  formatted_spend <- purrr::map2_vec(formatted_spend, suffix, function(x, y) {
-    paste(trimws(x), y, sep = "")
-  })
-  return(paste0(prefix, trimws(formatted_spend)))
+
+  # Format x-axis
+  x_axis_formatted <- format_number(
+    abbreviate_number(input_data[["x_axis"]])[[1]],
+    abbreviate_number(input_data[["x_axis"]])[[2]],
+    round_digit_mapping = round_digit_mapping,
+    prefix = ""
+  )
+
+  # Plot saturation curves
+  ggplot(data = input_data) +
+    geom_point(aes(x = .data[["x_axis"]], y = contribution, color = .data[["channels"]]), "alpha" =.9, size = 3) +
+    geom_text(aes(x= .data[["x_axis"]], y = contribution, label =  contribution_formatted, color = .data[["channels"]]), vjust = -0.5, hjust = 1) +  # Label x values in millions
+    geom_text(aes(x= .data[["x_axis"]], y = contribution, label = x_axis_formatted, color = .data[["channels"]]), hjust =-.2, vjust =1)+ # Label y values as percentage
+    geom_segment(aes(x = .data[["x_axis"]], xend = .data[["x_axis"]], y = 0, yend = contribution, color = .data[["channels"]]), linetype = "dashed", alpha = 0.9) +
+    geom_segment(aes(y = y_axis_func(.data[["x_axis"]], .data[["alpha"]], .data[["beta"]]), yend = contribution, x = 0, xend = .data[["x_axis"]], color = .data[["channels"]]), , linetype = "dashed", alpha = 0.9) +
+    lapply(seq_len(nrow(input_data)), function(i) {
+      stat_function(
+        fun = y_axis_func,
+        args = list(alpha = input_data[["alpha"]][i], beta = input_data[["beta"]][i]),
+        aes(color = .data[["channels"]][i]),
+        geom = "line",
+        "alpha" = .6,
+        size = .6
+      )
+    })
 }

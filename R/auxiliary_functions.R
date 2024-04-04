@@ -10,6 +10,7 @@
 #' @return A list of named numeric vectors.
 #' @importFrom dplyr %>%
 #' @importFrom purrr map
+#' @importFrom stringr str_split
 #' @examples
 #' \dontrun{
 #' char_vector <- c("1|3|2", "4|6|2")
@@ -163,6 +164,8 @@ replace_values_pairwise <-
 #' It considers cases such as aggregation, aggregation and segregation, variable updates, or segregation in the process.
 #' The named vectors generated represent the contribution of the model, with variable names containing APL information.
 #'
+#' @importFrom stringr str_split
+#'
 #' @examples
 #' \dontrun{
 #' # Both matching - aggregation and segregation
@@ -186,23 +189,22 @@ scope_for_dependent_variable <- function(previous_var_apl, current_var_apl, var_
   if (var_agg_delimiter == delimiter) {
     stop("var_agg_delimiter and delimiter cannot be the same.")
   }
-  previous_var_wo_apl_ori <- sapply(str_split(
+  previous_var_wo_apl_ori <- sapply(stringr::str_split(
     names(previous_var_apl),
     stringr::fixed(delimiter)
   ), function(x) x[1])
   previous_var_wo_apl <- unique(previous_var_wo_apl_ori)
-  current_var_wo_apl_ori <- sapply(str_split(
+  current_var_wo_apl_ori <- sapply(stringr::str_split(
     names(current_var_apl),
     stringr::fixed(delimiter)
   ), function(x) x[1])
   current_var_wo_apl <- unique(current_var_wo_apl_ori)
-  previous_vars_wo_apl <- str_split(previous_var_wo_apl, stringr::fixed(var_agg_delimiter))
-  current_vars_wo_apl <- str_split(current_var_wo_apl, stringr::fixed(var_agg_delimiter))
+  previous_vars_wo_apl <- stringr::str_split(previous_var_wo_apl, stringr::fixed(var_agg_delimiter))
+  current_vars_wo_apl <- stringr::str_split(current_var_wo_apl, stringr::fixed(var_agg_delimiter))
   previous_var_in_current_vars <- sapply(
     previous_vars_wo_apl,
     function(x) all(x %in% unlist(current_vars_wo_apl))
   )
-  # browser()
   feasible_dependent_variables <- if (all(sapply(
     current_var_wo_apl,
     function(x) x %in% previous_var_wo_apl

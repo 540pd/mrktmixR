@@ -26,7 +26,8 @@ collate_models(
   drop_highest_estimate = FALSE,
   get_model_object = FALSE,
   defer_intercept_test = FALSE,
-  always_check_vif = FALSE
+  always_check_vif = FALSE,
+  verbose = FALSE
 )
 }
 \arguments{
@@ -117,6 +118,8 @@ object instead of the default list. Default is FALSE.}
 \item{always_check_vif}{Logical; if TRUE, the Variance Inflation Factor (VIF)
 is always checked. If FALSE, VIF will only be checked if there are no flags
 for p-value and no signs for the estimate. Default is FALSE.}
+
+\item{verbose}{Logical indicating whether to print time and number of models. Default is \code{FALSE}.}
 }
 \value{
 A list containing the collated models after filtering and preprocessing,

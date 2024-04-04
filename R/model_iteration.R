@@ -346,6 +346,8 @@ collate_base_models <-
 #' @param always_check_vif Logical; if TRUE, the Variance Inflation Factor (VIF)
 #'   is always checked. If FALSE, VIF will only be checked if there are no flags
 #'   for p-value and no signs for the estimate. Default is FALSE.
+#' @param verbose Logical indicating whether to print time and number of models. Default is \code{FALSE}.
+#'
 #'
 #' @return A list containing the collated models after filtering and preprocessing,
 #'   along with associated statistics. This list includes details about the dependent
@@ -401,7 +403,11 @@ collate_models <-
            drop_highest_estimate = FALSE,
            get_model_object = FALSE,
            defer_intercept_test = FALSE,
-           always_check_vif = FALSE) {
+           always_check_vif = FALSE,
+           verbose=FALSE) {
+
+    if(verbose) {cat("Pre-Modeling:     ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"),"\t")}
+
     if (is.list(dep_var_info) &&
         all(lapply(dep_var_info, length) == 1)) {
       dep_variable_with_apl <- unlist(lapply(dep_var_info, names))
@@ -433,6 +439,13 @@ collate_models <-
     # Dependent Variable information
     dep_apl_df_list[[1]] <-
       dplyr::bind_rows(dep_apl_df_list[1], .id = "dependent_id")
+
+    if(verbose) {
+      cat("# of models: (",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),") *",length(id_factors),"= (",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),") *",length(id_factors), "\n")
+      }
+
+
+
     # Dependent Variable for modeling
     dep_apl_df_list[[2]] <-
       lapply(dep_apl_df_list[[2]], function(x) {
@@ -666,6 +679,8 @@ collate_models <-
         Inf
     }
 
+    if(verbose) {cat("Modeling:         ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")}
+
     model_result <-
       purrr::map2(
         dep_apl_df_list[[2]],
@@ -689,6 +704,9 @@ collate_models <-
         )
       )
 
+    if(verbose) {cat("Replicate Models: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\t")}
+    if(verbose) {cat("# of models: ", length(id_factors), "\n")}
+
     model_coef_all <-
       purrr::map_dfr(model_result, 1, .id = "dependent_id")
     model_coef_all <- model_coef_all %>%
@@ -704,6 +722,8 @@ collate_models <-
         id_factors,
         c("sigma", "residuals", "rmse", "mae", "dependent_sum")
       ))
+
+    if(verbose) {cat("Model Collation:  ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")}
 
     # Initial summarization of flags
     mdl_smry_flag <- model_coef_all %>%
@@ -800,6 +820,9 @@ collate_models <-
                        by = c("dependent_id", "model_id", "loop_id"))
 
     lm_model_all <- purrr::map(model_result, 3)
+
+    if(verbose) {cat("Model Completion: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")}
+
 
     list(
       dep_apl_df_list[[1]] %>%

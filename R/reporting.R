@@ -315,7 +315,7 @@ abbreviate_number <- function(number) {
 #'
 #' @param numeric_vector A numeric vector containing the numbers to be formatted.
 #' @param notation An ordered factor specifying the notation for each number in numeric_vector.
-#' @param round_digit_mapping A named numeric vector specifying the number of digits to round each notation to (default is set to 2 for "M" notation).
+#' @param round_digit_mapping A named numeric vector specifying the number of digits to round each level of notation to (default is set to 2 for "M" notation).
 #' @param prefix A prefix string to be added before each formatted number (default is empty).
 #'
 #' @return A character vector containing the formatted numbers with the specified notation and rounding.
@@ -337,44 +337,45 @@ abbreviate_number <- function(number) {
 #'  round_digit_mapping = c(M = 2), prefix = "$")
 #' }
 #'
-#' @importFrom purrr map_vec
+#' @importFrom purrr map_vec map2
+#' @importFrom tidyr fill
+#' @importFrom dplyr pull
 #' @export
 format_number <-
   function(numeric_vector,
            notation,
            round_digit_mapping = setNames(2, "M"),
            prefix = "") {
-    if (length(round_digit_mapping) > 1) {
-      stop("length of round_digit_mapping must not be greater than 1")
-    }
-    if (!is.na(round_digit_mapping)) {
-      if (!names(round_digit_mapping)  %in% notation) {
-        stop("round_digit_mapping must be part of notation")
-      }
+    all_levels <- levels(notation)
+    all_levels <- setNames(rep(NA, length(all_levels)), all_levels)
+    common_names <-
+      intersect(names(round_digit_mapping), names(all_levels))
+    all_levels[common_names] <-
+      ifelse(is.na(all_levels[common_names]),
+             round_digit_mapping[common_names],
+             all_levels[common_names])
 
-      if (sum(notation > names(round_digit_mapping))) {
-        numeric_vector[notation > names(round_digit_mapping)] <-
-          round(numeric_vector[notation > names(round_digit_mapping)], 0)
-      }
-      if (sum(notation == names(round_digit_mapping))) {
-        numeric_vector[notation == names(round_digit_mapping)] <-
-          round(numeric_vector[notation == names(round_digit_mapping)], as.numeric(round_digit_mapping))
-      }
-      if (sum(numeric_vector >= 1 &
-              notation < names(round_digit_mapping))) {
-        numeric_vector[numeric_vector >= 1 &
-                         notation < names(round_digit_mapping)] <-
-          round(numeric_vector[numeric_vector >= 1 &
-                                 notation < names(round_digit_mapping)], as.numeric(round_digit_mapping))
-      }
-      if (sum(numeric_vector < 1 &
-              notation < names(round_digit_mapping))) {
-        numeric_vector[numeric_vector < 1 &
-                         notation < names(round_digit_mapping)] <-
-          signif(numeric_vector[numeric_vector < 1 &
-                                  notation < names(round_digit_mapping)], as.numeric(round_digit_mapping))
-      }
-    }
+    all_levels <-
+      as.data.frame(all_levels) %>%
+      tidyr::fill(all_levels, .direction = "up") %>%
+      dplyr::pull(all_levels) %>%
+      setNames(names(all_levels))
+    all_levels[is.na(all_levels)] <- 0
+
+    notation_round <- factor(notation, levels = names(all_levels))
+    levels(notation_round) <- all_levels[names(all_levels) %in% levels(notation_round)]
+
+    gt_1 <- numeric_vector >= 1
+    numeric_vector_gt1 <-
+      purrr::map2(numeric_vector[gt_1], as.numeric(as.character(notation_round[gt_1])), function(x, y)
+        round(x, y))
+    numeric_vector_lt1 <-
+      purrr::map2(numeric_vector[!gt_1], as.numeric(as.character(notation_round[!gt_1])), function(x, y)
+        signif(x, y))
+
+    numeric_vector[gt_1] <- unlist(numeric_vector_gt1)
+    numeric_vector[!gt_1] <- unlist(numeric_vector_lt1)
+
     notation <- as.character(notation)
     if (sum(notation == "-")) {
       notation[notation == "-"] <- ""

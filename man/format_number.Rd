@@ -16,7 +16,7 @@ format_number(
 
 \item{notation}{An ordered factor specifying the notation for each number in numeric_vector.}
 
-\item{round_digit_mapping}{A named numeric vector specifying the number of digits to round each notation to (default is set to 2 for "M" notation).}
+\item{round_digit_mapping}{A named numeric vector specifying the number of digits to round each level of notation to (default is set to 2 for "M" notation).}
 
 \item{prefix}{A prefix string to be added before each formatted number (default is empty).}
 }

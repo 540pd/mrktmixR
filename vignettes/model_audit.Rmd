@@ -1,0 +1,98 @@
+---
+title: "model_audit"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{model_audit}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(mrktmix)
+```
+
+
+dummy_df<-data.frame(
+  dummy0115=c(1,0,0,0,0,0),	dummy0122=c(0,1,0,0,0,0), dummy0326=c(0,0,1,0,0,0),
+  dummy0205=c(0,0,0,1,0,0), dummy0319=c(0,0,0,0,1,0), dummy0219=c(0,0,0,0,0,1),
+  dates=as.Date(c("2021-01-15","2021-01-22","2021-03-26","2021-02-05","2021-03-19","2021-02-19")))
+modeling_df<-merge(advertising, dummy_df, by.x = 0, by.y = "dates", all =T)
+modeling_df[is.na(modeling_df)]<-0
+row.names(modeling_df)<-modeling_df$Row.names
+modeling_df<-modeling_df[,-1]
+modeling_df %>%
+  head()
+  
+lm_model<-lm(Sales ~., data = modeling_df)
+
+
+model_coef<-setNames(lm_model$coefficient,
+  c(names(lm_model$coefficient)[1],
+    paste0(names(lm_model$coefficient)[-1],"_0_1_0")))
+
+
+# Generate Brand Painting for each stages
+bp_all <- generate_model_decomposition(
+    list(setNames(1,"Sales_0_1_0")),
+    list(model_coef),
+    modeling_df,
+    dep_info_is_weight_coefficient = TRUE,
+    indep_info_is_weight_coefficient = TRUE) %>%
+    imap(function(x, y) {
+        lapply(x, function(df) {
+            df %>%
+                rownames_to_column(var = "date")
+        })
+    })
+bp_all[[1]][[1]] %>%
+  head()
+
+bp_all[[1]][[2]] %>%
+  head()
+
+# Collated Brand Painting of model
+collated_bp <- bind_rows(
+    purrr::map_dfr(bp_all, 1, .id = "stage_id") %>%
+        group_by(date) %>%
+        select(-stage_id) %>%
+        summarise_all(sum, na.rm = T) %>%
+        column_to_rownames(var = "date") %>%
+        mutate_all(list(~ . * -1)) %>%
+        rownames_to_column(var = "date"),
+    purrr::map_dfr(bp_all, 2, .id = "stage_id") %>%
+        group_by(date) %>%
+        select(-stage_id) %>%
+        summarise_all(sum, na.rm = T)) %>%
+    group_by(date) %>%
+    summarise_all(sum, na.rm = T) %>%
+    column_to_rownames(var = "date") %>%
+    select(-1)
+collated_bp %>%
+  head()
+
+#collated_bp <- collated_bp[, names(collated_bp)[(round(sapply(collated_bp, sum), 10) == 0) != T]]
+#collated_bp %>%
+#  head()
+  
+if (any(round(rowSums(collated_bp)-modeling_df[,"Sales"], 5) != 0)) {
+    cat("QC: check BP\n")
+}
+cat("MAPE           : ", round(mean(abs(collated_bp[, "residual", drop = F] / rowSums(collated_bp))[, 1]) * 100,4), "% \n")
+cat("Variables in BP: ", sort(unique(names(collated_bp))),"\n")
+
+media_vars<-c("TV", "Radio", "Newspaper")
+benchmark_contri<-sapply(collated_bp[,media_vars],sum) + runif(3, min = 0.005, max = 0.015)
+
+cat("QC: Compare contribution in BP and benchmark\n")
+compare_and_print_differences(benchmark_contri,
+  sapply(collated_bp, sum), acceptable_difference = 0.01)
+
+compare_and_print_differences(benchmark_contri,
+  sapply(collated_bp, sum), acceptable_difference = 0.015)

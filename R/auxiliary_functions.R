@@ -379,3 +379,223 @@ scd_type_2_update <-
       base_data
     }
   }
+
+#' Summarize Recursive Model Coefficients
+#'
+#' This function summarizes the coefficients of a recursive model, joining relevant
+#' datasets and performing necessary data transformations. It takes dependent variable information,
+#' model summary, and model coefficient datasets, and consolidates them using unique identifiers
+#' to create a comprehensive summary file with both dependent and independent information.
+#'
+#' @param model_dependent Dataset containing information about the dependent variable in the model.
+#' @param model_smry Summary dataset related to the model.
+#' @param model_coef Dataset containing coefficients of the model.
+#' @param round_digits Number of digits to round up numeric values to. It is important to specify
+#' this parameter due to potential approximation issues when merging datasets with different precision.
+#'
+#' @return A summarized dataset containing information about the model coefficients.
+#'
+#' @importFrom dplyr full_join right_join filter select rename group_by
+#'
+recursive_model_summary <- function(model_dependent, model_smry, model_coef, round_digits = 10) {
+  model_coef <- model_coef %>%
+    dplyr::inner_join(
+      model_smry %>%
+        dplyr::filter(.data$flag_num == 0) %>%
+        dplyr::select("stage_id", "version_id", "dependent_id", "model_id", "loop_id", "rmse"),
+      by = c("stage_id", "version_id", "dependent_id", "model_id", "loop_id")
+    )
+
+  # Create Summary
+  mdl_smry_all <- model_dependent %>%
+    dplyr::rename("dep_variable" = "variable", "dep_adstock" = "adstock", "dep_power" = "power", "dep_lag" = "lag", "dep_sum" =  "sum") %>%
+    dplyr::mutate(dep_sum = round(.data$dep_sum, round_digits)) %>%
+    dplyr::right_join(
+      model_coef %>%
+        dplyr::filter(.data$type == "fixed") %>%
+        dplyr::rename("indep_variable" = "variable", "indep_adstock" = "adstock", "indep_power" = "power", "indep_lag" = "lag") %>%
+        dplyr::select("version_id", "stage_id", "dependent_id", "model_id", "loop_id", "indep_variable", "indep_adstock", "indep_power", "indep_lag", "dep_sum", "contri", "contri_perc") %>%
+        dplyr::mutate(dep_sum = round(.data$dep_sum, round_digits)),
+      by = c("stage_id", "version_id", "dependent_id","dep_sum")
+    ) %>%
+    dplyr::full_join(
+      model_coef %>%
+        dplyr::filter(.data$type == "flexible") %>%
+        dplyr::group_by(.data$version_id, .data$stage_id, .data$dependent_id, .data$model_id, .data$loop_id) %>%
+        dplyr::summarise(flexible_vars = paste(.data$variable, collapse = ", "), flexible_vars_count = n(), .groups = "drop"),
+      by = c("stage_id", "version_id", "dependent_id", "model_id", "loop_id")
+    ) %>%
+    dplyr::mutate(
+      flexible_vars = if_else(is.na(.data$flexible_vars), "", .data$flexible_vars),
+      flexible_vars_count = if_else(is.na(.data$flexible_vars_count), 0, .data$flexible_vars_count)
+    ) %>%
+    dplyr::full_join(
+      model_coef %>%
+        dplyr::filter(.data$type == "intercept") %>%
+        dplyr::select("version_id", "dependent_id", "stage_id", "model_id", "loop_id") %>%
+        dplyr::mutate(intercept = T),
+      by = c("stage_id", "version_id", "dependent_id", "model_id", "loop_id")
+    ) %>%
+    dplyr::mutate(
+      intercept = ifelse(is.na(.data$intercept), FALSE, .data$intercept),
+      indep_adstock = round(.data$indep_adstock, round_digits),
+      indep_power = round(.data$indep_power, round_digits),
+      indep_lag = round(.data$indep_lag, round_digits),
+      stage_version_dep_mdl_loop_stage = paste(.data$stage_id, .data$version_id, .data$dependent_id, .data$model_id, .data$loop_id, sep = "-")
+    )
+
+  mdl_smry_all
+}
+
+#' Generates combinations of dependent variables based on provided possible values.
+#'
+#' @param dep_vars List of dependent variable names.
+#' @param possible_values List containing data frames with possible values for each dependent variable.
+#'
+#' @return A list of named vectors representing all combinations of dependent variables.
+#'
+#' @importFrom stringr str_detect
+#'
+#' @examples
+#' \dontrun{
+#' # Example 1
+#' dep_var <- c("a", "b")
+#' possible_values <- list(c(a_1_9_2 = 1, b_1_3_4 = 2, a_1_4_4 = 10, b_1_5_3 = 3))
+#' get_dep_vars_combinations(dep_var, possible_values)
+#'
+#' # Example 2
+#' dep_var <- c("a")
+#' possible_values <- list(c(a_1_4_4 = 10, a_1_4_5 = 10, a_1_1_4 = 10))
+#' get_dep_vars_combinations(dep_var, possible_values)
+#' }
+#'
+get_dep_vars_combinations <- function(dep_vars, possible_values) {
+  stopifnot(!is.na(unlist(dep_vars)))
+  stopifnot(length(unlist(possible_values))>0)
+
+  # Extract relevant columns from each data frame in possible_values
+  list_of_combinations <- lapply(dep_vars, function(dep_var) possible_values[[1]][stringr::str_detect(names(possible_values[[1]]), paste0("^", dep_var))])
+
+  # Find all combinations of vectors with and without applied names
+  grid_vars_wt_apl <- as.matrix(do.call(expand.grid, lapply(list_of_combinations, names)))
+  grid_contri <- as.matrix(do.call(expand.grid, list_of_combinations))
+
+  # Create a list of named vectors
+  list_of_named_vectors <- lapply(seq_len(nrow(grid_vars_wt_apl)), function(i) {
+    unlist(setNames(as.list(grid_contri[i, ]), as.character(grid_vars_wt_apl[i, ])))
+  })
+
+  # Return the list of named vectors
+  list_of_named_vectors
+}
+
+#' Convert Variable Information to a List
+#'
+#' Applies a function to convert variable information with contribution values to a list.
+#'
+#' @param variables_wt_apl_contri Named numeric vector representing variables with weight, application, and contribution values.
+#'
+#' @return A list of numeric vectors containing variable, weight, application details, and contribution values.
+#'
+#' @examples
+#' \dontrun{
+#' # Example 1
+#' convert_variable_info2list(c(a_2_4_2 = 9, b_2_4_1 = 6))
+#'
+#' # Example 2
+#' convert_variable_info2list(c(a_2_4_2 = 9))
+#' }
+#'
+convert_variable_info2list <- function(variables_wt_apl_contri) {
+  # Parse the variable, weight, and application details using a specific function
+  var_wt_apl_df <- parse_variable_wt_apl(names(variables_wt_apl_contri), apl_delimiter = "_", delimiter = "_")
+
+  # Add the contribution values to the parsed dataframe
+  var_wt_apl_df$contri <- variables_wt_apl_contri
+
+  # Apply a function to each row of the dataframe, creating a list of numeric vectors
+  var_apl_apl_list <- apply(var_wt_apl_df[, -1], 1, function(var_wt_apl) {
+    # Extract numeric values from the row and return as a vector
+    c(
+      var_wt_apl["adstock"], var_wt_apl["power"], var_wt_apl["lag"]
+      # , var_wt_apl["contri"]
+    )
+  }, simplify = FALSE)
+
+  # Assign names to the list based on the 'variable' column of the dataframe
+  names(var_apl_apl_list) <- var_wt_apl_df$variable
+
+  # Return the list for this combination
+  var_apl_apl_list
+}
+
+#' Summarizes target model at stage and variable level.
+#'
+#' This function takes a dataframe containing information about the target model
+#' at different stages and variables. It calculates summary statistics such as
+#' model hierarchy, number of unique models (apl), average contribution (contri_avg),
+#' and contribution deviation (contri_dev).
+#'
+#' @param stage_id_target_model A dataframe containing information about the target model.
+#' @return A dataframe summarizing the target model at stage and variable level.
+#'
+#' @importFrom dplyr full_join right_join filter select rename group_by distinct mutate rowwise summarise reframe arrange ungroup
+#' @importFrom tidyr separate_rows
+#' @importFrom primes generate_n_primes
+#' @importFrom stats quantile sd median
+#'
+generate_reverse_target_smry <- function(stage_id_target_model) {
+  reverse_target_smry <- stage_id_target_model %>%
+    dplyr::select("stage_id", "variable", "adstock", "power", "lag", "contri_min", "contri_max") %>%
+    dplyr::distinct(.data$variable, .data$adstock, .data$power, .data$lag, .data$contri_min, .data$contri_max, .keep_all = T) %>%
+    dplyr::rowwise() %>%
+    dplyr::mutate(
+      ind_variable = .data$variable,
+      contri_avg = (.data$contri_min + .data$contri_max) / 2,
+      contri_dev = .data$contri_avg - .data$contri_min
+    )
+
+  reverse_target_smry <-
+    reverse_target_smry %>%
+    dplyr::select("stage_id", "variable", "ind_variable", "adstock", "power", "lag") %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(.data$stage_id, .data$variable, .data$ind_variable) %>%
+    dplyr::summarise(n = n(), .groups = "drop") %>%
+    dplyr::full_join(
+      reverse_target_smry %>%
+        dplyr::group_by(.data$stage_id, .data$variable) %>%
+        dplyr::reframe(
+          quartile_avg =
+            list(list(
+              Q0 = min(.data$contri_avg),
+              Q1 = as.numeric(stats::quantile(.data$contri_avg, 0.25)),
+              Q2 = as.numeric(stats::quantile(.data$contri_avg, 0.5)),
+              Q3 = as.numeric(stats::quantile(.data$contri_avg, 0.75)),
+              Q4 = max(.data$contri_avg)
+            )),
+          quartile_dev = list(list(
+            overall = stats::sd(.data$contri_dev),
+            Q1 = stats::sd(.data$contri_dev[.data$contri_avg >= min(.data$contri_avg) & .data$contri_avg <= stats::quantile(.data$contri_avg, 0.25)]),
+            Q2 = stats::sd(.data$contri_dev[.data$contri_avg > stats::quantile(.data$contri_avg, 0.25) & .data$contri_avg <= stats::median(.data$contri_avg)]),
+            Q3 = stats::sd(.data$contri_dev[.data$contri_avg > stats::median(.data$contri_avg) & .data$contri_avg <= stats::quantile(.data$contri_avg, 0.75)]),
+            Q4 = stats::sd(.data$contri_dev[.data$contri_avg > stats::quantile(.data$contri_avg, 0.75) & .data$contri_avg <= max(.data$contri_avg)])
+          ))
+        ),
+      by = c("stage_id", "variable")
+    ) %>%
+    tidyr::separate_rows("ind_variable", sep = "\\|") %>%
+    dplyr::arrange(-.data$stage_id)
+
+  reverse_target_smry <- reverse_target_smry %>%
+    dplyr::left_join(
+      data.frame(ind_variable = unique(reverse_target_smry$ind_variable), id = primes::generate_n_primes(length(unique(reverse_target_smry$ind_variable)))),
+      by = "ind_variable"
+    ) %>%
+    dplyr::mutate(ind_variable = factor(.data$ind_variable, levels = unique(.data$ind_variable), ordered = T)) %>%
+    dplyr::arrange(-.data$stage_id) %>%
+    dplyr::mutate(stage_id = factor(.data$stage_id, levels = unique(.data$stage_id), ordered = T)) %>%
+    dplyr::group_by(.data$stage_id, .data$variable) %>%
+    dplyr::mutate(id = sum(.data$id)) %>%
+    dplyr::ungroup()
+  reverse_target_smry
+}

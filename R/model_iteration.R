@@ -441,8 +441,12 @@ collate_models <-
       dplyr::bind_rows(dep_apl_df_list[1], .id = "dependent_id")
 
     if(verbose) {
-      cat("# of models: (",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),") *",length(id_factors),"= (",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),") *",length(id_factors), "\n")
+      if(length(id_factors)){
+        cat("# of models: (",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),") *",length(id_factors),"= (",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),") *",length(id_factors), "\n")
+      } else {
+        cat("# of models: ",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),"= ",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),"\n")
       }
+    }
 
 
 
@@ -704,8 +708,10 @@ collate_models <-
         )
       )
 
-    if(verbose) {cat("Replicate Models: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\t")}
-    if(verbose) {cat("# of models: ", length(id_factors), "\n")}
+    if(length(id_factors)){
+      if(verbose) {cat("Replicate Models: ", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\t")}
+      if(verbose) {cat("# of models: ", length(id_factors), "\n")}
+    }
 
     model_coef_all <-
       purrr::map_dfr(model_result, 1, .id = "dependent_id")

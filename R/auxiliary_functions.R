@@ -397,7 +397,7 @@ scd_type_2_update <-
 #'
 #' @importFrom dplyr full_join right_join filter select rename group_by
 #'
-recursive_model_summary <- function(model_dependent, model_smry, model_coef, round_digits = 10) {
+recursive_model_summary <- function(model_dependent, model_smry, model_coef, round_digits = 10, ids_separator = "|") {
   model_coef <- model_coef %>%
     dplyr::inner_join(
       model_smry %>%
@@ -441,7 +441,7 @@ recursive_model_summary <- function(model_dependent, model_smry, model_coef, rou
       indep_adstock = round(.data$indep_adstock, round_digits),
       indep_power = round(.data$indep_power, round_digits),
       indep_lag = round(.data$indep_lag, round_digits),
-      stage_version_dep_mdl_loop_stage = paste(.data$stage_id, .data$version_id, .data$dependent_id, .data$model_id, .data$loop_id, sep = "-")
+      stage_version_dep_mdl_loop_stage = paste(.data$stage_id, .data$version_id, .data$dependent_id, .data$model_id, .data$loop_id, sep = ids_separator)
     )
 
   mdl_smry_all

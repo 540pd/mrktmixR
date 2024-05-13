@@ -392,6 +392,7 @@ scd_type_2_update <-
 #' @param model_coef Dataset containing coefficients of the model.
 #' @param round_digits Number of digits to round up numeric values to. It is important to specify
 #' this parameter due to potential approximation issues when merging datasets with different precision.
+#' @param ids_separator used to concatenate ids for model
 #'
 #' @return A summarized dataset containing information about the model coefficients.
 #'

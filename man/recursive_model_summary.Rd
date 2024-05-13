@@ -8,7 +8,8 @@ recursive_model_summary(
   model_dependent,
   model_smry,
   model_coef,
-  round_digits = 10
+  round_digits = 10,
+  ids_separator = "|"
 )
 }
 \arguments{
@@ -20,6 +21,8 @@ recursive_model_summary(
 
 \item{round_digits}{Number of digits to round up numeric values to. It is important to specify
 this parameter due to potential approximation issues when merging datasets with different precision.}
+
+\item{ids_separator}{used to concatenate ids for model}
 }
 \value{
 A summarized dataset containing information about the model coefficients.

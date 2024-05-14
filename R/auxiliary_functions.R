@@ -600,3 +600,135 @@ generate_reverse_target_smry <- function(stage_id_target_model) {
     dplyr::ungroup()
   reverse_target_smry
 }
+
+#' Find Final Dependent Variables
+#'
+#' This function identifies and returns the final dependent variables from a list of variable scopes based on the provided dependent variable names. It is used to create final dependent named vector for model
+#'
+#' @param list_of_dep_var_scope A list containing variable scopes.
+#' @param dep_vars Character vector of dependent variable names to be matched.
+#' @param var_agg_delimiter A character specifying the variable aggregation delimiter. default value is "|".
+#' @param apl_delimiter A character specifying the APL delimiter. default value is "_".
+#' @param delimiter A character specifying the variable APL delimiter. default value is "_".
+#'
+#' @examples
+#' \dontrun{
+#' list_of_vars <- list(a_1_9_2 = 1, b_1_3_4 = 2, c_3_5_2=9, a_1_4_4=10,b_1_5_3=3)
+#' dep_vars <- c("a", "b")
+#' find_final_dependent_vars(list_of_vars, dep_vars)
+#' }
+#'
+#' @return A subset of list_of_dep_var_scope containing the final dependent variables that match the specified dep_vars.
+#'
+trim_list_for_dependent_variables <- function(list_of_dep_var_scope, dep_vars, var_agg_delimiter = "|", apl_delimiter = "_", delimiter = "_") {
+  names_wo_apl <- parse_variable_wt_apl(names(list_of_dep_var_scope), apl_delimiter = apl_delimiter, delimiter = delimiter)$variable
+  names_wo_apl_match <- names_wo_apl %in% dep_vars
+  # Tackle segregation of variable scenario
+  if (sum(names_wo_apl_match) == 0) {
+    names_wo_apl_match <- unlist(lapply(str_split(names_wo_apl, fixed(var_agg_delimiter)), function(x) {
+      lapply(str_split(dep_vars, fixed(var_agg_delimiter)), function(y) {
+        all(x %in% y)
+      })
+    }))
+  }
+  list_of_dep_var_scope[names_wo_apl_match]
+}
+
+#' Generate Reverse Target Models
+#'
+#' This function generates reverse target models based on provided final contributions and model summaries.
+#' It takes input dataframes containing final contributions (final_contri), collated models (collated_models),
+#' and successful model information (dep_contri_ranges_wt_model_ids), and performs matching and accumulation to generate the models.
+#' The resulting dataframe contains all combinations of final contributions from collated models along with intermediate contributions.
+#'
+#' @param final_contri A dataframe with the following columns:
+#'     "variable", "adstock", "power", "lag", "dep_contri_exp".
+#'     This dataframe represents the top hierarchy (root) of dependent attributes used to trace the model.
+#'     It must comply with the feasible conditions specified in dep_contri_ranges_wt_model_ids.
+#' @param collated_models A dataframe containing information on successful models at each model ID.
+#'     The columns in collated_models include:
+#'     "stage_id", "version_id", "dependent_id", "dep_variable", "dep_adstock", "dep_power", "dep_lag", "model_id", "loop_id",
+#'     "indep_variable", "indep_adstock", "indep_power", "indep_lag", "contri_perc", "stage_version_dep_mdl_loop_stage".
+#'     Rows must be sorted by stage IDs, where lower row numbers represent granular or leaf models, and higher row numbers indicate top hierarchy in models.
+#'     All model IDs must be present in collated_models.
+#' @param dep_contri_ranges_wt_model_ids A dataframe containing model IDs, dependent variables, and acceptable contributions (contri_min & contri_max) to achieve benchmark APL and contribution.
+#'     This dataframe includes the contribution mix and maximum contribution at each model stage necessary to achieve model benchmark.
+#'     Rows must be sorted by stage IDs, where lower row numbers represent granular or leaf models, and higher row numbers indicate top hierarchy in models.
+#'     The file is generated as part of the process for reverse modeling.
+#' @param acceptable_lower_diff Acceptable lower difference for contribution matching.
+#' @param acceptable_upper_diff Acceptable upper difference for contribution matching.
+#' @param round_digits Number of digits to which adstock, power, and lag should be rounded to resolve issues of approximation while merging.
+#' @param verbose If TRUE, prints information on intermediate steps.
+#'
+#' @return A dataframe with all combinations from model collation including intermediate contributions.
+#'
+#' @importFrom dplyr mutate inner_join distinct group_split rowwise filter bind_rows
+#' @importFrom purrr reduce
+#'
+generate_reverse_target_models <- function(final_contri, collated_models, dep_contri_ranges_wt_model_ids, acceptable_lower_diff = 0.0001, acceptable_upper_diff = 0.0001, round_digits = 10, verbose = F) {
+
+  collated_all_model <- collated_all_model %>%
+    dplyr::mutate(
+      dep_adstock = round(.data$dep_adstock, round_digits),
+      dep_power = round(.data$dep_power, round_digits),
+      dep_lag = round(.data$dep_lag, round_digits)
+    ) %>%
+    dplyr::inner_join(dep_contri_ranges_wt_model_ids, by = c("stage_id" = "stage_id", "version_id" = "version_id", "dependent_id" = "dependent_id", "model_id" = "model_id", "loop_id" = "loop_id", "dep_variable" = "variable"), relationship = "many-to-many") %>%
+    dplyr::distinct() %>%
+    as.data.frame() %>%
+    dplyr::group_split(.data$stage_id)
+
+  collated_all_model <- c(list(
+    dplyr::bind_rows(collated_all_model[[1]][0,],
+              final_contri %>%
+                dplyr::rename("indep_variable" = "variable", "indep_adstock" = "adstock", "indep_power" = "power", "indep_lag" = "lag", "indep_contri_exp" = "dep_contri_exp")) %>%
+      dplyr::mutate(
+        stage_version_dep_mdl_loop_stage = "-999|9|9|9|9|9", stage_id = -999, version_id = 9, dependent_id = 9, model_id = 9, loop_id = 9,
+        is_dep_matching = NA, dep_contri_exp = NA, prev_stage_version_dep_mdl_loop_stage = "-999|9|9|9|9|9", contri_check = NA)
+  ), collated_all_model)
+
+  accumulated_models <- purrr::reduce(collated_all_model, function(collated_all_model_first, collated_all_model_second) {
+
+    if (verbose) {
+      print(paste0("Stage ID : ", unique(collated_all_model_second[1, "stage_id"])))
+    }
+
+    next_step_model <- collated_all_model_first %>%
+      dplyr::select("indep_variable", "indep_adstock", "indep_power", "indep_lag", "indep_contri_exp", "stage_version_dep_mdl_loop_stage") %>%
+      dplyr::rename(
+        "dep_variable" = "indep_variable", "dep_adstock" = "indep_adstock", "dep_power" = "indep_power", "dep_lag" = "indep_lag", "dep_contri_exp" = "indep_contri_exp",
+        "prev_stage_version_dep_mdl_loop_stage" = "stage_version_dep_mdl_loop_stage"
+      ) %>%
+      dplyr::distinct()
+
+    next_step_model_matched <-
+      next_step_model %>%
+      dplyr::inner_join(collated_all_model_second, by = c("dep_variable", "dep_adstock", "dep_power", "dep_lag"), relationship = "many-to-many") %>%
+      dplyr::mutate(
+        is_dep_matching = !is.na(.data$stage_id),
+        indep_contri_exp = if_else(.data$is_dep_matching, .data$dep_contri_exp * .data$contri_perc / 100, .data$dep_contri_exp),
+        contri_check = if_else(.data$is_dep_matching, (.data$contri_min <= (.data$dep_contri_exp + acceptable_lower_diff)) & (.data$contri_max >= (.data$dep_contri_exp - acceptable_upper_diff)), FALSE)
+      )
+    next_step_model_matched<-next_step_model_matched[,names(collated_all_model_first)]
+
+    next_step_model_matched_contri <- next_step_model_matched %>%
+      dplyr::rowwise() %>%
+      dplyr::filter(identical(.data$is_dep_matching, .data$contri_check)) %>%
+      as.data.frame()
+
+    if (nrow(next_step_model_matched_contri) == 0) {
+      print("No match found.")
+      rbind(
+        next_step_model_matched %>% as.data.frame(),
+        collated_all_model_first %>% dplyr::mutate(is_dep_matching = F)
+      )
+    } else {
+      rbind(
+        next_step_model_matched_contri,
+        collated_all_model_first %>% dplyr::mutate(is_dep_matching = F)
+      )
+    }
+  })
+
+  accumulated_models %>% dplyr::select(-"is_dep_matching")
+}

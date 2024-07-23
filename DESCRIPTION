@@ -1,6 +1,6 @@
 Package: mrktmix
 Title: Market Mix Modeling
-Version: 0.0.2.4
+Version: 0.0.2.5
 Date: 2023-10-22
 Depends: R (>= 3.1)
 Imports: dplyr, purrr, stringr, car, magrittr, tidyselect, tibble, tidyr, rlang, nloptr, ggplot2, ggVennDiagram, primes
@@ -10,7 +10,7 @@ Description: Market Mix Modeling (MMM) is a statistical analysis method in marke
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.2
 URL: https://github.com/540pd/mrktmixR
 LazyData: true
 Suggests: 

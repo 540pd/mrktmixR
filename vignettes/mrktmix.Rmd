@@ -14,6 +14,167 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
+```{r}
+# Load necessary packages
 library(mrktmix)
+library(stringr)
+```
+
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+```
+
+```{r}
+# Define the number of rows
+n <- 12
+# Generate the data
+advertising <- data.frame(
+  Sales = rnorm(n, mean = 210, sd = 4),
+  TV = rnorm(n, mean = 101, sd = 84),
+  Radio = rnorm(n, mean = 26, sd = 16),
+  Newspaper = rnorm(n, mean = 27, sd = 12)
+)
+
+# Create a sequence of dates
+rownames(advertising) <- seq.Date(as.Date("2021-01-01"), by = "week", length.out = n)
+advertising %>%
+  head()
+```
+
+```{r}
+# Define event indicators
+events <- as.data.frame(model.matrix(~ Date - 1, data.frame(Date=as.factor(str_replace_all(rownames(advertising), "-", "_")))))
+events %>%
+  head()
+```
+
+```{r}
+# Define fixed variables with applied constraints
+fixed_var_wt_apl_constraints <- list(
+  TV = list(
+    adstock = setNames(c(.1, .2, .1), c("start", "end", "step")),
+    power = setNames(c(.2, .3, .1), c("start", "end", "step")),
+    lag = setNames(c(0, 1, 1), c("start", "end", "step")),
+    constraints = "adstock <= power"
+  ),
+  Radio = list(
+    adstock = setNames(c(.5, .7, .2), c("start", "end", "step")),
+    power = setNames(c(.6, .9, .3), c("start", "end", "step")),
+    lag = setNames(c(0, 0, 1), c("start", "end", "step")),
+    constraints = NA
+  )
+)
+fixed_var_wt_apl_constraints
+```
+
+```{r}
+# Define flexible variables with constraints
+flexi_vars <-  names(events)[1:3]
+flexi_vars_wt_apl_constraints <-
+  setNames(lapply(seq_along(flexi_vars), function(x) {
+    list(
+      adstock = setNames(c(0, 0, 1), c("start", "end", "step")),
+      power = setNames(c(1, 1, 1), c("start", "end", "step")),
+      lag = setNames(c(0, 0, 1), c("start", "end", "step")),
+      constraints = NA
+    )
+  }), flexi_vars)
+flexi_vars_list <- unlist(mrktmix:::generate_variable_combination(flexi_vars_wt_apl_constraints), recursive = FALSE)
+flexi_vars_list
+```
+
+```{r}
+# Generate combinations of variables
+candidate_variables_list <- lapply(mrktmix:::generate_variable_combination(fixed_var_wt_apl_constraints), function(x) {
+  c(list(fixed = x), list(flexible = flexi_vars_list))
+})
+candidate_variables_list[1:3]
+```
+
+```{r}
+# Example usage with the provided variable_apl_constraints
+model_df <- cbind(advertising, events)
+model_df %>%
+  head()
+```
+
+####  Dependent variable without any transformation
+```{r}
+dep_var_info <- 'Sales'
+dep_var_info
+```
+
+```{r}
+# Run market mix modeling
+model_results <- collate_models(candidate_variables_list[1:2], model_df, dep_var_info,
+                                pos_sign_variables = c("TV", "Radio"), 
+                                neg_sign_variables = c("Date2021_01_01", "Date2021_01_08", "Date2021_01_15", "Date2021_01_22", "Date2021_01_29"),
+                                mdl_start_date = NA, mdl_end_date = NA,
+                                base_variables = NA, with_intercept = TRUE,
+                                var_agg_delimiter = "|", apl_delimiter = "_", var_apl_delimiter = "|",
+                                run_up_to_flexi_vars = 1,
+                                vif_threshold = 10, pvalue_thresholds = c(intercept = 0.15, fixed = 0.15, flexible = 0.15),
+                                drop_pvalue_precision = 2, drop_discard_estimate_sign = TRUE, drop_highest_estimate = FALSE,
+                                get_model_object = FALSE)
+
+```
+
+```{r}
+# Display dependent variable details
+model_results[[1]]
+```
+
+```{r}
+# Display model summary
+model_results[[2]] %>%
+  dplyr::arrange(dependent_id, model_id, loop_id) %>%
+  head()
+```
+
+```{r}
+# Display model details
+model_results[[3]] %>%
+  dplyr::arrange(dependent_id, model_id, loop_id) %>%
+  head()
+```
+
+####  Dependent variable after applying adstock .1, power .8 and lag 0 time 2 
+```{r}
+dep_var_info <- setNames(c(2), c('Sales|0.1_0.8_0'))
+dep_var_info
+```
+
+```{r}
+# Run market mix modeling
+model_results <- collate_models(candidate_variables_list[1:2], model_df, dep_var_info,
+                                pos_sign_variables = c("TV", "Radio"), 
+                                neg_sign_variables = c("Date2021_01_01", "Date2021_01_08", "Date2021_01_15", "Date2021_01_22", "Date2021_01_29"),
+                                mdl_start_date = NA, mdl_end_date = NA,
+                                base_variables = NA, with_intercept = TRUE,
+                                var_agg_delimiter = "|", apl_delimiter = "_", var_apl_delimiter = "|",
+                                run_up_to_flexi_vars = 1,
+                                vif_threshold = 10, pvalue_thresholds = c(intercept = 0.15, fixed = 0.15, flexible = 0.15),
+                                drop_pvalue_precision = 2, drop_discard_estimate_sign = TRUE, drop_highest_estimate = FALSE,
+                                get_model_object = FALSE)
+
+```
+
+```{r}
+# Display dependent variable details
+model_results[[1]]
+```
+
+```{r}
+# Display model summary
+model_results[[2]] %>%
+  dplyr::arrange(dependent_id, model_id, loop_id) %>%
+  head()
+```
+
+```{r}
+# Display model details
+model_results[[3]] %>%
+  dplyr::arrange(dependent_id, model_id, loop_id) %>%
+  head()
 ```

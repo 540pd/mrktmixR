@@ -439,12 +439,28 @@ collate_models <-
     # Dependent Variable information
     dep_apl_df_list[[1]] <-
       dplyr::bind_rows(dep_apl_df_list[1], .id = "dependent_id")
-
     if(verbose) {
+      if(drop_flexi_vars){
+        # Using safely() with map() to get the length of the second element, treating it as 1 if not present
+        safely_get_length <- purrr::safely(function(x) length(x[[2]]))
+        lengths <- purrr::map(candidate_variables_list, safely_get_length)
+        # Extracting results
+        lengths <- purrr::map(lengths, ~ ifelse(is.null(.x$result), 1, .x$result))
+        avg_num_model_due_flexi_vars<-mean(unlist(lengths)) + 1 - ifelse(is.na(run_up_to_flexi_vars),0,run_up_to_flexi_vars)
+        }
       if(length(id_factors)){
-        cat("# of models: (",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),") *",length(id_factors),"= (",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),") *",length(id_factors), "\n")
+        if(drop_flexi_vars){
+          cat("# of models: (",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),") *",length(id_factors),"\033[4mx",avg_num_model_due_flexi_vars,"\033[0m = (",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),") *",length(id_factors), "\033[4mx",avg_num_model_due_flexi_vars,"\033[0m\n")
+        } else {
+          cat("# of models: (",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),") *",length(id_factors),"= (",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),") *",length(id_factors), "\n")          
+        }
       } else {
-        cat("# of models: ",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),"= ",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),"\n")
+        if(drop_flexi_vars){
+          cat("# of models: ",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),"\033[4mx",avg_num_model_due_flexi_vars,"\033[0m = ",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),"\033[4mx",avg_num_model_due_flexi_vars,"\033[0m\n")
+        } else {
+          cat("# of models: ",nrow(dep_apl_df_list[[1]]),"x", length(candidate_variables_list),"= ",nrow(dep_apl_df_list[[1]])*length(candidate_variables_list),"\n")
+
+        }
       }
     }
 
@@ -661,7 +677,7 @@ collate_models <-
     candidate_variables_df$critical_vif <- vif_threshold
 
     candidate_variables_df <- candidate_variables_df %>%
-      left_join(candidate_variables_sum, by = c("model_id", "variable"))
+      dplyr::left_join(candidate_variables_sum, by = c("model_id", "variable"))
 
     candidate_variables_df_list <-
       candidate_variables_df[, c(

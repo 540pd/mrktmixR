@@ -16,9 +16,10 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(mrktmix)
+library(tidyverse)
 ```
 
-
+```{r}
 dummy_df<-data.frame(
   dummy0115=c(1,0,0,0,0,0),	dummy0122=c(0,1,0,0,0,0), dummy0326=c(0,0,1,0,0,0),
   dummy0205=c(0,0,0,1,0,0), dummy0319=c(0,0,0,0,1,0), dummy0219=c(0,0,0,0,0,1),
@@ -29,14 +30,17 @@ row.names(modeling_df)<-modeling_df$Row.names
 modeling_df<-modeling_df[,-1]
 modeling_df %>%
   head()
-  
+```  
+
+```{r}
 lm_model<-lm(Sales ~., data = modeling_df)
+lm_model
+```
 
-
+```{r}
 model_coef<-setNames(lm_model$coefficient,
   c(names(lm_model$coefficient)[1],
     paste0(names(lm_model$coefficient)[-1],"_0_1_0")))
-
 
 # Generate Brand Painting for each stages
 bp_all <- generate_model_decomposition(
@@ -51,12 +55,19 @@ bp_all <- generate_model_decomposition(
                 rownames_to_column(var = "date")
         })
     })
+```
+
+```{r}
 bp_all[[1]][[1]] %>%
   head()
+```
 
+```{r}
 bp_all[[1]][[2]] %>%
   head()
+```
 
+```{r}
 # Collated Brand Painting of model
 collated_bp <- bind_rows(
     purrr::map_dfr(bp_all, 1, .id = "stage_id") %>%
@@ -76,17 +87,17 @@ collated_bp <- bind_rows(
     select(-1)
 collated_bp %>%
   head()
+```
 
-#collated_bp <- collated_bp[, names(collated_bp)[(round(sapply(collated_bp, sum), 10) == 0) != T]]
-#collated_bp %>%
-#  head()
-  
+```{r}  
 if (any(round(rowSums(collated_bp)-modeling_df[,"Sales"], 5) != 0)) {
     cat("QC: check BP\n")
 }
 cat("MAPE           : ", round(mean(abs(collated_bp[, "residual", drop = F] / rowSums(collated_bp))[, 1]) * 100,4), "% \n")
 cat("Variables in BP: ", sort(unique(names(collated_bp))),"\n")
+```
 
+```{r}
 media_vars<-c("TV", "Radio", "Newspaper")
 benchmark_contri<-sapply(collated_bp[,media_vars],sum) + runif(3, min = 0.005, max = 0.015)
 
@@ -96,3 +107,4 @@ compare_and_print_differences(benchmark_contri,
 
 compare_and_print_differences(benchmark_contri,
   sapply(collated_bp, sum), acceptable_difference = 0.015)
+```

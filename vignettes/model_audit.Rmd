@@ -16,7 +16,13 @@ knitr::opts_chunk$set(
 
 ```{r setup}
 library(mrktmix)
+library(purrr)
+library(tibble)
+library(dplyr)
 ```
+
+
+
 
 ```{r}
 dummy_df<-data.frame(
@@ -48,7 +54,7 @@ bp_all <- generate_model_decomposition(
     modeling_df,
     dep_info_is_weight_coefficient = TRUE,
     indep_info_is_weight_coefficient = TRUE) %>%
-    imap(function(x, y) {
+    purrr::imap(function(x, y) {
         lapply(x, function(df) {
             df %>%
                 rownames_to_column(var = "date")

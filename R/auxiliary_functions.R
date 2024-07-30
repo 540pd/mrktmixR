@@ -741,264 +741,23 @@ generate_reverse_target_models <- function(final_contri, collated_models, dep_co
 #' @param flexi_vars A named list where each element represents a variable.
 #' @return A list containing all combinations of variables from flexi_vars.
 #'
+#' @importFrom utils combn
+#' 
 #' @examples
 #' \dontrun{
-#' flexi_vars <- list(a = c(m = 0, n = 1, o = 2), b = c(m = 0.1, n = 2.1, o = 4.2), c = c(m = 3.1, n = 2.7, o = 4.5))
+#' flexi_vars <- list(a = c(m = 0, n = 1, o = 2),
+#'      b = c(m = 0.1, n = 2.1, o = 4.2), 
+#'      c = c(m = 3.1, n = 2.7, o = 4.5))
 #' all_combination_of_flexi_vars(flexi_vars)
 #' }
 all_combination_of_flexi_vars <- function(flexi_vars) {
     char_vector <- names(flexi_vars)
     # Get all combinations
-    all_combinations <- unlist(lapply(c(0, seq_along(char_vector)), function(x) combn(char_vector, x, simplify = FALSE)), recursive = FALSE)
+    all_combinations <- unlist(lapply(c(0, seq_along(char_vector)), function(x) utils::combn(char_vector, x, simplify = FALSE)), recursive = FALSE)
     all_combinations_with_flexi_vars <- lapply(all_combinations, function(x) {
         flexi_vars[names(flexi_vars) %in% x]
     })
     all_combinations_with_flexi_vars
-}
-
-#' Rank Target Models Based on Contribution Metrics
-#'
-#' This function processes a data frame to rank models based on specified criteria related to marketing contributions.
-#' It filters the data to include only relevant columns (stage ID, variable, adstock, power, lag, minimum contribution, and maximum contribution),
-#' calculates the range of contribution for each model, and ranks the models based on multiple attributes including adstock, power, and lag.
-#'
-#' @param data A data frame containing detailed model information including minimum and maximum contributions.
-#' @param stage_id_col Name of the column in data representing the stage ID.
-#' @param variable_col Name of the column in data representing the variable or factor.
-#' @param adstock_col Name of the column in data representing the adstock effect.
-#' @param power_col Name of the column in data representing the power of the model.
-#' @param lag_col Name of the column in data representing the lag effect.
-#' @param contri_min_col Name of the column in data representing the minimum contribution value.
-#' @param contri_max_col Name of the column in data representing the maximum contribution value.
-#'
-#' @return A data frame with models ranked based on the specified criteria. The output data frame excludes the intermediate columns
-#' used for calculations such as minimum contribution, contribution range, and count of models per group.
-#'
-#' @examples
-#' \dontrun{
-#' data <- data.frame(
-#'     stage_id = c(1, 1, 2, 2),
-#'     variable = c("A", "B", "A", "B"),
-#'     adstock = c(0.5, 0.3, 0.4, 0.6),
-#'     power = c(2, 2, 3, 3),
-#'     lag = c(1, 2, 1, 2),
-#'     contri_min = c(10, 15, 10, 20),
-#'     contri_max = c(20, 25, 15, 30)
-#' )
-#' rank_target_models(data, "stage_id", "variable", "adstock", "power", "lag", "contri_min", "contri_max")
-#' }
-rank_target_models <- function(data,
-                               stage_id_col, variable_col,
-                               adstock_col, power_col,
-                               lag_col, contri_min_col,
-                               contri_max_col) {
-    # Select columns from data frame
-    data <- data %>%
-        select(
-            {{ stage_id_col }}, {{ variable_col }},
-            {{ adstock_col }}, {{ power_col }},
-            {{ lag_col }}, {{ contri_min_col }},
-            {{ contri_max_col }}
-        )
-    processed_model <-
-        data %>%
-        rowwise() %>%
-        mutate(contri_range = .data[[contri_max_col]] - .data[[contri_min_col]]) %>%
-        group_by_at(vars(
-            {{ stage_id_col }}, {{ variable_col }},
-            {{ adstock_col }}, {{ power_col }},
-            {{ lag_col }}
-        )) %>%
-        summarise(
-            contri_min = mean(.data[[contri_min_col]]),
-            contri_range = round(mean(contri_range, na.rm = TRUE), 2),
-            .groups = "drop"
-        ) %>%
-        group_by_at(vars({{ stage_id_col }}, {{ variable_col }})) %>%
-        mutate(n = n()) %>%
-        arrange_at(vars(
-            {{ stage_id_col }}, {{ variable_col }},
-            {{ adstock_col }}, -{{ power_col }},
-            {{ lag_col }}, {{ contri_min_col }},
-            -contri_range
-        )) %>%
-        mutate(rank = row_number()) %>%
-        select(-contri_min, -contri_range, -n)
-    return(processed_model)
-}
-
-#' Subset Feasible Target Models
-#'
-#' Subset target models based on feasibility criteria.
-#'
-#' This function filters feasible model summaries based on given target model contribution ranges.
-#'
-#' @param model_summary Data frame summarizing the model, including columns:
-#'   "stage_id", "version_id", "dependent_id", "model_id", "loop_id", "dependent_sum", "fixed_contri_perc",
-#'   and additional columns for each independent variable indicating adstock, power, lag, contri, and contri_perc.
-#' @param target_model Data frame with target model containing columns:
-#'   "stage_id", "variable", "adstock", "power", "lag", "contri_min", "contri_max".
-#' @param current_stage_id Current stage ID.
-#' @param independent_variables Character vector of independent variables in the model.
-#' @param reverse_append_remodel Logical indicating whether to append target model parameters during the reverse modeling process. Only meaningful for hierarchical models.
-#' @param contri_min_relaxation_factor Numeric value to apply as a factor on the minimum contribution at each stage.
-#' @param contri_max_relaxation_factor Numeric value to apply as a factor on the maximum contribution at each stage.
-#' @param target_contri_round Numeric value specifying rounding precision for contribution values.
-#' @param verbose Logical indicating whether to print details during processing.
-#'
-#' @return Updated target model data frame with columns representing minimized and maximized contributions for feasible models.
-#'
-subset_feasible_target_models <- function(
-    model_summary,
-    target_model,
-    current_stage_id,
-    independent_variables,
-    contri_min_relaxation_factor = 1,
-    contri_max_relaxation_factor = 1,
-    target_contri_round = 5,
-    verbose = FALSE) {
-    # subset relevent target models
-    current_target_model <- target_model %>%
-        filter(stage_id > current_stage_id) %>%
-        mutate(
-            adstock = round(adstock, 10),
-            power = round(power, 10),
-            lag = round(lag, 10)
-        ) %>%
-        select(stage_id, variable, adstock, power, lag, contri_min, contri_max) %>%
-        filter(variable %in% independent_variables) %>%
-        arrange(-abs(stage_id))
-    # remove duplicate vars and convert to list of dataframes of target models
-    target_model_list <- current_target_model %>%
-        filter(stage_id %in% current_target_model$stage_id[!duplicated(current_target_model[, "variable"])]) %>%
-        mutate(
-            stage_id = current_stage_id,
-            contri_min = contri_min_relaxation_factor * contri_min,
-            contri_max = contri_max_relaxation_factor * contri_max
-        ) %>%
-        distinct() %>%
-        group_split(variable)
-    target_model_list <- lapply(target_model_list, function(target_model_df) {
-        names(target_model_df)[3:7] <- paste(unique(target_model_df$variable), c("adstock", "power", "lag", "contri_min", "contri_max"), sep = "_")
-        target_model_df[, -2]
-    })
-    updated_target_model <- model_summary[, c(
-        "stage_id", "version_id", "dependent_id", "model_id", "loop_id", "dependent_sum", "fixed_contri_perc",
-        paste(rep(independent_variables, each = 5), rep(c("adstock", "power", "lag", "contri", "contri_perc"), length(independent_variables)), sep = "_")
-    )]
-    for (target_model_df in target_model_list) {
-        suppressMessages(
-            updated_target_model <- updated_target_model %>%
-                left_join(target_model_df, relationship = "many-to-many")
-        )
-    }
-    if (length(independent_variables) == 1) {
-        updated_target_model$dependent_min_sum <-
-            updated_target_model$dependent_sum / updated_target_model[, paste0(independent_variables[1], "_contri")] * updated_target_model[, paste0(independent_variables[1], "_contri_min")]
-        updated_target_model$dependent_max_sum <-
-            updated_target_model$dependent_sum / updated_target_model[, paste0(independent_variables[1], "_contri")] * updated_target_model[, paste0(independent_variables[1], "_contri_max")]
-    } else if (length(independent_variables) == 2) {
-        updated_target_model[, "dependent_min_1"] <-
-            updated_target_model[, "dependent_sum"] / updated_target_model[, paste0(independent_variables[1], "_contri")] * updated_target_model[, paste0(independent_variables[1], "_contri_min")]
-        updated_target_model[, "dependent_min_1_contri_2"] <- updated_target_model[, "dependent_min_1"] * updated_target_model[, paste0(independent_variables[2], "_contri_perc")] / 100
-        updated_target_model[, "is_min_valid"] <- (updated_target_model[, paste0(independent_variables[2], "_contri_min")] <= updated_target_model[, "dependent_min_1_contri_2"])
-        updated_target_model[updated_target_model$is_min_valid, "dependent_min_sum"] <-
-            updated_target_model[updated_target_model$is_min_valid, "dependent_sum"] / updated_target_model[updated_target_model$is_min_valid, paste0(independent_variables[1], "_contri")] * updated_target_model[updated_target_model$is_min_valid, paste0(
-                independent_variables[1],
-                "_contri_min"
-            )]
-        updated_target_model[!updated_target_model$is_min_valid, "dependent_min_sum"] <-
-            updated_target_model[!updated_target_model$is_min_valid, "dependent_sum"] / updated_target_model[!updated_target_model$is_min_valid, paste0(independent_variables[2], "_contri")] * updated_target_model[!updated_target_model$is_min_valid, paste0(
-                independent_variables[2],
-                "_contri_min"
-            )]
-        updated_target_model[, "dependent_max_1"] <- updated_target_model[, "dependent_sum"] / updated_target_model[, paste0(independent_variables[1], "_contri")] * updated_target_model[, paste0(independent_variables[1], "_contri_max")]
-        updated_target_model[, "dependent_max_1_contri_2"] <- updated_target_model[, "dependent_max_1"] * updated_target_model[, paste0(independent_variables[2], "_contri_perc")] / 100
-        updated_target_model[, "is_max_valid"] <- (updated_target_model[, paste0(independent_variables[2], "_contri_max")] >= updated_target_model[, "dependent_max_1_contri_2"])
-        updated_target_model[updated_target_model$is_max_valid, "dependent_max_sum"] <-
-            updated_target_model[updated_target_model$is_max_valid, "dependent_sum"] / updated_target_model[updated_target_model$is_max_valid, paste0(independent_variables[1], "_contri")] * updated_target_model[updated_target_model$is_max_valid, paste0(
-                independent_variables[1],
-                "_contri_max"
-            )]
-        updated_target_model[!updated_target_model$is_max_valid, "dependent_max_sum"] <-
-            updated_target_model[!updated_target_model$is_max_valid, "dependent_sum"] / updated_target_model[!updated_target_model$is_max_valid, paste0(independent_variables[2], "_contri")] * updated_target_model[!updated_target_model$is_max_valid, paste0(
-                independent_variables[2],
-                "_contri_max"
-            )]
-        if (verbose) {
-            cat("Reference Variable: ", independent_variables[1], "\n")
-            print(with(updated_target_model, table(is_min_valid, is_max_valid)))
-            cat("Valid models")
-            print(with(updated_target_model, table(dependent_max_sum > dependent_min_sum)))
-            cat("Percentile for  differences", "\n")
-            print(with(
-                updated_target_model,
-                round(quantile(dependent_max_sum - dependent_min_sum, seq(0, 100, by = 10) / 100)), 2
-            ))
-        }
-    } else {
-        stop("Not Implemented for more than 2 variables")
-    }
-    updated_target_model <- updated_target_model %>%
-        mutate(
-            dependent_min_sum = round(dependent_min_sum, target_contri_round),
-            dependent_max_sum = round(dependent_max_sum, target_contri_round)
-        ) %>%
-        filter(dependent_max_sum >= dependent_min_sum)
-    if (nrow(updated_target_model)) {
-        updated_target_model <-
-            updated_target_model[, c("stage_id", "version_id", "dependent_id", "model_id", "loop_id", "dependent_min_sum", "dependent_max_sum")] %>%
-            left_join(model_dependent, by = c("stage_id", "version_id", "dependent_id")) %>%
-            select(stage_id, version_id, dependent_id, model_id, loop_id, variable, adstock, power, lag, dependent_min_sum, dependent_max_sum)
-        updated_target_model <- updated_target_model %>%
-            group_by(stage_id, version_id, dependent_id, model_id, loop_id, variable, adstock, power, lag, dependent_max_sum) %>%
-            summarise(dependent_min_sum = min(dependent_min_sum), .groups = "drop") %>%
-            group_by(stage_id, version_id, dependent_id, model_id, loop_id, variable, adstock, power, lag, dependent_min_sum) %>%
-            summarise(dependent_max_sum = max(dependent_max_sum), .groups = "drop") %>%
-            rename("contri_min" = dependent_min_sum, "contri_max" = dependent_max_sum) %>%
-            distinct()
-    }
-    updated_target_model
-}
-
-#' Update Target Model
-#'
-#' Update the target model based on new feasible target models.
-#'
-#' @param target_model Original target model data frame.
-#' @param new_target_model Data frame of new feasible target models to be added.
-#' @param independent_variables Character vector of independent variables in the model.
-#' @param try_append_feasible_models Logical indicating whether to attempt to append target models during the update process. Default if FALSE
-#'   This is applied when re-running the model and the same variable is part of stage 0.
-#' @param verbose Logical indicating whether to print details during processing. Default is FALSE.
-#'
-#' @return Updated target model data frame.
-#'
-update_target_model <- function(target_model, new_target_model, independent_variables, try_append_feasible_models = FALSE, verbose = FALSE) {
-    reverse_append_remodel_upd <- try_append_feasible_models && all(length(independent_variables) == 1 & independent_variables %in% unique(target_model$variable[target_model$stage_id == 0]))
-    if (nrow(new_target_model)) {
-        if (reverse_append_remodel_upd) {
-            new_target_model <- rbind(
-                new_target_model,
-                target_model %>%
-                    filter(variable %in% independent_variables) %>%
-                    filter(stage_id != current_stage_id) %>%
-                    mutate(stage_id = current_stage_id)
-            ) %>%
-                distinct()
-        }
-    } else {
-        print("Reverse Model: No models selected")
-    }
-    if (verbose) {
-        print(paste("Reverse Model: ", nrow(new_target_model), "models selected"))
-        if (reverse_append_remodel_upd) {
-            print(paste("Reverse Model: ", length(unique(new_target_model$dependent_id)) - 1, "Unique dependent APL"))
-        } else {
-            print(paste("Reverse Model: ", length(unique(new_target_model$dependent_id)), "Unique dependent APL"))
-        }
-    }
-    rbind(target_model, new_target_model)
 }
 
 #' Flatten hierarchical paths into a tidy data frame.
@@ -1035,4 +794,273 @@ flatten_path <- function(full_path) {
             }), .id = "aggregated_ids")
         }), .id = "individual_path")
     }), .id = "aggregated_path")
+}
+
+
+#' Rank Target Models Based on Contribution Metrics
+#'
+#' This function processes a data frame to rank models based on specified criteria related to marketing contributions.
+#' It filters the data to include only relevant columns, calculates the range of contribution for each model, and ranks
+#' the models based on multiple attributes including adstock, power, and lag.
+#'
+#' @param data A data frame containing detailed model information including minimum and maximum contributions.
+#' @param stage_id_col Name of the column in `data` representing the stage ID.
+#' @param variable_col Name of the column in `data` representing the variable or factor.
+#' @param adstock_col Name of the column in `data` representing the adstock effect.
+#' @param power_col Name of the column in `data` representing the power of the model.
+#' @param lag_col Name of the column in `data` representing the lag effect.
+#' @param contri_min_col Name of the column in `data` representing the minimum contribution value.
+#' @param contri_max_col Name of the column in `data` representing the maximum contribution value.
+#'
+#' @return A data frame with models ranked based on the specified criteria. The output data frame excludes the intermediate columns
+#' used for calculations such as minimum contribution, contribution range, and count of models per group.
+#' 
+#' @importFrom dplyr select rowwise mutate group_by summarise n arrange row_number across
+#' @importFrom tidyr all_of
+#' 
+#' @examples
+#' \dontrun{
+#' data <- data.frame(
+#'   stage_id = c(1, 1, 2, 2),
+#'   variable = c("A", "B", "A", "B"),
+#'   adstock = c(0.5, 0.3, 0.4, 0.6),
+#'   power = c(2, 2, 3, 3),
+#'   lag = c(1, 2, 1, 2),
+#'   contri_min = c(10, 15, 10, 20),
+#'   contri_max = c(20, 25, 15, 30)
+#' )
+#' rank_target_models(data, "stage_id", "variable", "adstock", "power", "lag", "contri_min", "contri_max")
+#' }
+rank_target_models <- function(data,
+                                 stage_id_col, variable_col,
+                                 adstock_col, power_col,
+                                 lag_col, contri_min_col,
+                                 contri_max_col) {
+  # Select columns from data frame
+  data <- data %>%
+    dplyr::select(tidyr::all_of(c(stage_id_col, variable_col,adstock_col, power_col, lag_col, contri_min_col, contri_max_col)))
+
+  processed_model <-
+      data %>%
+        dplyr::rowwise() %>%
+        dplyr::mutate(contri_range = .data[[contri_max_col ]] - .data[[contri_min_col ]]) %>%
+        dplyr::group_by(!!!syms(c(stage_id_col, variable_col, adstock_col, power_col , lag_col))) %>%
+        dplyr::summarise(
+          contri_min = mean(.data[[contri_min_col]]),
+          contri_range = round(mean(.data[["contri_range"]], na.rm = TRUE), 2),
+          .groups = "drop"
+        ) %>%
+        dplyr::group_by(!!!syms(c(stage_id_col, variable_col))) %>%
+        dplyr::mutate(n = dplyr::n()) %>%
+        dplyr::arrange(dplyr::across(c(stage_id_col, variable_col, adstock_col, -power_col, lag_col, contri_min_col, -"contri_range"))) %>%
+        dplyr::mutate(rank = dplyr::row_number()) %>%
+        dplyr::select(!c("contri_min","contri_range","n"))
+ 
+  return(processed_model)
+}
+
+#' Subset Feasible Target Models
+#'
+#' Filters target models based on feasibility criteria and updates the target model. This is useful for identifying and working with models that fit within a specified contribution range.
+#'
+#' @param model_summary A data frame summarizing the model, with columns including:
+#'   \itemize{
+#'     \item \code{stage_id}: Stage ID
+#'     \item \code{version_id}: Version ID
+#'     \item \code{dependent_id}: Dependent variable ID
+#'     \item \code{model_id}: Model ID
+#'     \item \code{loop_id}: Loop ID
+#'     \item \code{dependent_sum}: Sum of the dependent variable
+#'     \item \code{fixed_contri_perc}: Fixed contribution percentage
+#'     \item Additional columns for each independent variable, indicating adstock, power, lag, contribution, and contribution percentage.
+#'   }
+#' @param model_dependent A data frame with details for the dependent model, linked to \code{dependent_id} in \code{model_summary}. Columns include:
+#'   \itemize{
+#'     \item \code{stage_id}: Stage ID
+#'     \item \code{version_id}: Version ID
+#'     \item \code{dependent_id}: Dependent variable ID
+#'     \item \code{variable}: Independent variable name
+#'     \item \code{adstock}: Adstock effect
+#'     \item \code{power}: Power of the model
+#'     \item \code{lag}: Lag effect
+#'     \item \code{sum_of_dependent_series}: Sum of the dependent variable series
+#'   }
+#' @param target_model A data frame with target model details to check against the feasible space. Includes:
+#'   \itemize{
+#'     \item \code{stage_id}: Stage ID
+#'     \item \code{variable}: Independent variable name
+#'     \item \code{adstock}: Adstock effect
+#'     \item \code{power}: Power of the model
+#'     \item \code{lag}: Lag effect
+#'     \item \code{contri_min}: Minimum contribution value
+#'     \item \code{contri_max}: Maximum contribution value
+#'   }
+#' @param current_stage_id Current stage ID.
+#' @param independent_variables A character vector of independent variables in the model.
+#' @param contri_min_relaxation_factor A numeric factor for relaxing the minimum contribution.
+#' @param contri_max_relaxation_factor A numeric factor for relaxing the maximum contribution.
+#' @param target_contri_round Numeric precision for rounding contribution values.
+#' @param verbose Logical, whether to print processing details.
+#'
+#' @return A data frame with updated target models, showing minimized and maximized contributions for feasible models.
+#'
+#' @importFrom dplyr filter mutate distinct arrange left_join summarise group_by ungroup rename
+#' @importFrom tidyr all_of
+#' 
+subset_feasible_target_models <- function(
+  model_summary,
+  model_dependent,
+  target_model,
+  current_stage_id,
+  independent_variables,
+  contri_min_relaxation_factor = 1,
+  contri_max_relaxation_factor = 1,
+  target_contri_round = 5,
+  verbose = FALSE
+) {
+  # subset relevent target models
+  current_target_model <-
+   target_model %>%
+    dplyr::filter(.data$stage_id > current_stage_id) %>%
+    dplyr::mutate(
+      adstock = round(.data$adstock, 10),
+      power = round(.data$power, 10),
+      lag = round(.data$lag, 10)
+    ) %>%
+    dplyr::select(tidyr::all_of(c("stage_id", "variable", "adstock", "power", "lag", "contri_min", "contri_max"))) %>%
+    dplyr::filter(.data$variable %in% independent_variables) %>%
+    dplyr::arrange(desc(abs(.data$stage_id)))
+
+  # remove duplicate vars and convert to list of dataframes of target models
+  target_model_list <- current_target_model %>%
+    dplyr::filter(.data$stage_id %in% current_target_model$stage_id[!duplicated(current_target_model$variable)]) %>%
+    dplyr::mutate(
+      stage_id = current_stage_id,
+      contri_min = contri_min_relaxation_factor * .data$contri_min,
+      contri_max = contri_max_relaxation_factor * .data$contri_max
+    ) %>%
+    dplyr::distinct() %>%
+    dplyr::group_split(.data$variable)
+
+  target_model_list <- lapply(target_model_list, function(target_model_df) {
+    names(target_model_df)[3:7] <- paste(unique(target_model_df$variable), c("adstock", "power", "lag", "contri_min", "contri_max"), sep = "_")
+    target_model_df[, -2]
+  })
+
+  updated_target_model <- model_summary[, c(
+    "stage_id", "version_id", "dependent_id", "model_id", "loop_id", "dependent_sum", "fixed_contri_perc",
+    paste(rep(independent_variables, each = 5), rep(c("adstock", "power", "lag", "contri", "contri_perc"), length(independent_variables)), sep = "_")
+  )]
+
+  for (target_model_df in target_model_list) {
+    suppressMessages(
+      updated_target_model <- updated_target_model %>%
+        dplyr::left_join(target_model_df, relationship = "many-to-many")
+    )
+  }
+
+  if (length(independent_variables) == 1) {
+    updated_target_model$dependent_min_sum <-
+      updated_target_model$dependent_sum / updated_target_model[, paste0(independent_variables[1], "_contri")] * updated_target_model[, paste0(independent_variables[1], "_contri_min")]
+    updated_target_model$dependent_max_sum <-
+      updated_target_model$dependent_sum / updated_target_model[, paste0(independent_variables[1], "_contri")] * updated_target_model[, paste0(independent_variables[1], "_contri_max")]
+  } else if (length(independent_variables) == 2) {
+    updated_target_model[, "dependent_min_1"] <-
+      updated_target_model[, "dependent_sum"] / updated_target_model[, paste0(independent_variables[1], "_contri")] * updated_target_model[, paste0(independent_variables[1], "_contri_min")]
+    updated_target_model[, "dependent_min_1_contri_2"] <- updated_target_model[, "dependent_min_1"] * updated_target_model[, paste0(independent_variables[2], "_contri_perc")] / 100
+
+    updated_target_model[, "is_min_valid"] <- (updated_target_model[, paste0(independent_variables[2], "_contri_min")] <= updated_target_model[, "dependent_min_1_contri_2"])
+    updated_target_model[updated_target_model$is_min_valid, "dependent_min_sum"] <-
+      updated_target_model[updated_target_model$is_min_valid, "dependent_sum"] / updated_target_model[updated_target_model$is_min_valid, paste0(independent_variables[1], "_contri")] * updated_target_model[updated_target_model$is_min_valid, paste0(independent_variables[1], "_contri_min")]
+    updated_target_model[!updated_target_model$is_min_valid, "dependent_min_sum"] <-
+      updated_target_model[!updated_target_model$is_min_valid, "dependent_sum"] / updated_target_model[!updated_target_model$is_min_valid, paste0(independent_variables[2], "_contri")] * updated_target_model[!updated_target_model$is_min_valid, paste0(independent_variables[2], "_contri_min")]
+
+    updated_target_model[, "dependent_max_1"] <- updated_target_model[, "dependent_sum"] / updated_target_model[, paste0(independent_variables[1], "_contri")] * updated_target_model[, paste0(independent_variables[1], "_contri_max")]
+    updated_target_model[, "dependent_max_1_contri_2"] <- updated_target_model[, "dependent_max_1"] * updated_target_model[, paste0(independent_variables[2], "_contri_perc")] / 100
+
+    updated_target_model[, "is_max_valid"] <- (updated_target_model[, paste0(independent_variables[2], "_contri_max")] >= updated_target_model[, "dependent_max_1_contri_2"])
+    updated_target_model[updated_target_model$is_max_valid, "dependent_max_sum"] <-
+      updated_target_model[updated_target_model$is_max_valid, "dependent_sum"] / updated_target_model[updated_target_model$is_max_valid, paste0(independent_variables[1], "_contri")] * updated_target_model[updated_target_model$is_max_valid, paste0(independent_variables[1], "_contri_max")]
+    updated_target_model[!updated_target_model$is_max_valid, "dependent_max_sum"] <-
+      updated_target_model[!updated_target_model$is_max_valid, "dependent_sum"] / updated_target_model[!updated_target_model$is_max_valid, paste0(independent_variables[2], "_contri")] * updated_target_model[!updated_target_model$is_max_valid, paste0(independent_variables[2], "_contri_max")]
+
+    if (verbose) {
+      cat("Reference Variable: ", independent_variables[1], "\n")
+      print(with(updated_target_model, table(is_min_valid, is_max_valid)))
+      cat("Valid models")
+      print(with(updated_target_model, table(dependent_max_sum > dependent_min_sum)))
+      cat("Percentile for  differences", "\n")
+      print(with(
+        updated_target_model,
+        round(quantile(dependent_max_sum - dependent_min_sum, seq(0, 100, by = 10) / 100)), 2
+      ))
+    }
+  } else {
+    stop("Not Implemented for more than 2 variables")
+  }
+
+  updated_target_model <- updated_target_model %>%
+    dplyr::mutate(
+      dependent_min_sum = round(.data$dependent_min_sum, target_contri_round),
+      dependent_max_sum = round(.data$dependent_max_sum, target_contri_round)
+    ) %>%
+    dplyr::filter(.data$dependent_max_sum >= .data$dependent_min_sum)
+
+  if (nrow(updated_target_model)) {
+    updated_target_model <-
+      updated_target_model[, c("stage_id", "version_id", "dependent_id", "model_id", "loop_id", "dependent_min_sum", "dependent_max_sum")] %>%
+      dplyr::left_join(model_dependent, by = c("stage_id", "version_id", "dependent_id")) %>%
+      dplyr::select(tidyr::all_of(c("stage_id", "version_id", "dependent_id", "model_id", "loop_id", "variable", "adstock", "power", "lag", "dependent_min_sum", "dependent_max_sum")))
+    updated_target_model <- updated_target_model %>%
+      dplyr::group_by(.data$stage_id, .data$version_id, .data$dependent_id, .data$model_id, .data$loop_id, .data$variable, .data$adstock, .data$power, .data$lag, .data$dependent_max_sum) %>%
+      dplyr::summarise(dependent_min_sum = min(.data$dependent_min_sum), .groups = "drop") %>%
+      dplyr::group_by(.data$stage_id, .data$version_id, .data$dependent_id, .data$model_id, .data$loop_id, .data$variable, .data$adstock, .data$power, .data$lag, .data$dependent_min_sum) %>%
+      dplyr::summarise(dependent_max_sum = max(.data$dependent_max_sum), .groups = "drop") %>%
+      dplyr::rename("contri_min" = "dependent_min_sum", "contri_max" = "dependent_max_sum") %>%
+      dplyr::distinct()
+  }
+  updated_target_model
+}
+
+#' Update Target Model
+#'
+#' Update the target model based on new feasible target models.
+#'
+#' @param target_model Original target model data frame.
+#' @param new_target_model Data frame of new feasible target models to be added.
+#' @param independent_variables Character vector of independent variables in the model.
+#' @param try_append_feasible_models Logical, whether to append target model parameters during reverse modeling. Only relevant for hierarchical models. Default is FALSE. This is applied when re-running the model and the same variable is part of stage 0.
+#' @param verbose Logical indicating whether to print details during processing. Default is FALSE.
+#'
+#' @return Updated target model data frame.
+#' 
+#' @importFrom dplyr filter mutate distinct
+#'
+update_target_model <- function(target_model, new_target_model, independent_variables, try_append_feasible_models = FALSE, verbose = FALSE) {
+  reverse_append_remodel_upd <- try_append_feasible_models && all(length(independent_variables) == 1 & independent_variables %in% unique(target_model$variable[target_model$stage_id == 0]))
+
+  if (nrow(new_target_model)) {
+    if (reverse_append_remodel_upd) {
+      new_target_model <- rbind(
+        new_target_model,
+        target_model %>%
+          dplyr::filter(.data$variable %in% independent_variables) %>%
+          dplyr::filter(.data$stage_id != unique(new_target_model$stage_id)) %>%
+          dplyr::mutate(stage_id = unique(new_target_model$stage_id))
+      ) %>%
+        dplyr::distinct()
+    }
+  } else {
+    print("Reverse Model: No models selected")
+  }
+
+  if (verbose) {
+    print(paste("Reverse Model: ", nrow(new_target_model), "models selected"))
+    if (reverse_append_remodel_upd) {
+      print(paste("Reverse Model: ", length(unique(new_target_model$dependent_id)) - 1, "Unique dependent APL"))
+    } else {
+      print(paste("Reverse Model: ", length(unique(new_target_model$dependent_id)), "Unique dependent APL"))
+    }
+  }
+  rbind(target_model, new_target_model)
 }
